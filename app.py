@@ -1,9 +1,10 @@
+import os
 import streamlit as st
 from openai import OpenAI
-from supabase import create_client  # Supabase接続
+from supabase import create_client, Client  # Supabase接続
 
 # ==========================================
-# 1. 設定部分
+# 0. ページ設定
 # ==========================================
 
 # ページの設定（タイトルやアイコン）
@@ -45,96 +46,149 @@ header[data-testid="stHeader"] {
 </style>
 """, unsafe_allow_html=True)
 
-# secrets.toml からキーを取得
-if "OPENAI_API_KEY" in st.secrets:
-    api_key = st.secrets["OPENAI_API_KEY"]
-else:
+# ==========================================
+# 1. Supabase / OpenAI 初期化
+# ==========================================
+
+# --- Supabase ---
+SUPABASE_URL = st.secrets.get("SUPABASE_URL") or os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = st.secrets.get("SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.error("SupabaseのSUPABASE_URL / (ANON_KEY or KEY) が見つかりません。secrets か環境変数を確認してください。")
+    st.stop()
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# --- OpenAI ---
+api_key = st.secrets.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+if not api_key:
     api_key = st.sidebar.text_input("OpenAI API Key", type="password")
 
 if not api_key:
-    st.warning("APIキーが設定されていません。")
+    st.warning("OpenAI APIキーが設定されていません。")
     st.stop()
 
 client = OpenAI(api_key=api_key)
 
-# Supabaseからお手伝いキーワードやポイントを持ってくる
+# ==========================================
+# 2. SessionState 初期化（キー衝突防止）
+# ==========================================
+if "page" not in st.session_state:
+    st.session_state["page"] = "lp"  # lp / chat
 
-if "SUPABASE_URL" not in st.secrets or "SUPABASE_ANON_KEY" not in st.secrets:
-    st.error("Supabaseの設定（SUPABASE_URL / SUPABASE_ANON_KEY）がsecrets.tomlにありません。")
-    st.stop()
+if "auth_user" not in st.session_state:
+    st.session_state["auth_user"] = None
 
-supabase = create_client(
-    st.secrets["SUPABASE_URL"],
-    st.secrets["SUPABASE_ANON_KEY"]
-)
+if "is_logged_in" not in st.session_state:
+    st.session_state["is_logged_in"] = False
 
-# ---------------------------
-# サイドバー：モード & 名前 & ポイント
-# ---------------------------
+# ==========================================
+# 3. ログイン / サインアップ ダイアログ
+# ==========================================
+@st.dialog("ログイン")
+def login_dialog():
+    mail_address = st.text_input("メールアドレス")
+    password = st.text_input("パスワード", type="password")
 
-# モード切り替え
-mode = st.sidebar.radio("だれとおはなしする？", ["サンタさん 🎅", "おにさん 👹"])
+    if st.button("ログイン"):
+        result = (
+            supabase.table("usermaster")
+            .select("*")
+            .eq("mail_address", mail_address)
+            .eq("password", password)
+            .execute()
+        )
 
-# 子どもの名前（ログイン不要なので入力だけ）
-if "child_name" not in st.session_state:
-    st.session_state["child_name"] = ""
+        if result.data:
+            st.session_state["auth_user"] = result.data[0]
+            st.session_state["is_logged_in"] = True
+            st.session_state["page"] = "chat"
+            st.success("ログイン成功")
+            st.rerun()
+        else:
+            st.error("メールアドレスまたはパスワードが正しくありません。")
 
-child_name_input = st.sidebar.text_input("おなまえ（ひらがな）", value=st.session_state["child_name"])
-st.session_state["child_name"] = child_name_input.strip()
+@st.dialog("新規登録")
+def signup_dialog():
+    name = st.text_input("ユーザー名")
+    mail_address = st.text_input("メールアドレス")
+    password = st.text_input("パスワード", type="password")
+    password2 = st.text_input("パスワード（確認）", type="password")
+    amazon_id = st.text_input("Amazon ID（任意）")
 
-if not st.session_state["child_name"]:
-    st.sidebar.info("おなまえをいれてね")
+    if st.button("アカウント作成"):
+        if not name.strip():
+            st.error("ユーザー名は必須です。"); return
+        if not mail_address.strip():
+            st.error("メールアドレスは必須です。"); return
+        if not password:
+            st.error("パスワードは必須です。"); return
+        if password != password2:
+            st.error("パスワードが一致しません"); return
 
-# DBから累計ポイント取得
-
-def load_child_total(child_name: str) -> int:
-    res = supabase.table("For_Children") \
-        .select("total_points") \
-        .eq("child_name", child_name) \
-        .execute()
-
-    if res.data and len(res.data) > 0:
-        return res.data[0]["total_points"]
-    else:
-        # 登録がない子は0で新規作成しておく
-        supabase.table("For_Children").insert({
-            "child_name": child_name,
-            "total_points": 0
+        supabase.table("usermaster").insert({
+            "name": name,
+            "mail_address": mail_address,
+            "password": password,
+            "amazon_id": amazon_id or None
         }).execute()
-        return 0    
 
-# total_points を必ず先に用意（KeyError防止）
-if "total_points" not in st.session_state:
-    st.session_state["total_points"] = 0
+        st.success("アカウントを作成しました。ログインしてください。")
 
-# 名前が変わったタイミングでDBからポイント復元
-if "prev_child_name" not in st.session_state:
-    st.session_state["prev_child_name"] = ""
+# ==========================================
+# 4. LP（ログイン前トップ）
+# ==========================================
+def render_lp():
+    col1, col2, col3 = st.columns([4, 1, 1])
+    with col2:
+        if st.button("ログイン"):
+            login_dialog()
+    with col3:
+        if st.button("新規登録"):
+            signup_dialog()
 
-if st.session_state["child_name"] and st.session_state["child_name"] != st.session_state["prev_child_name"]:
-    st.session_state["total_points"] = load_child_total(st.session_state["child_name"])
-    st.session_state["prev_child_name"] = st.session_state["child_name"]
+    st.header("サンタさんチャットアプリへようこそ！")
+    st.subheader("説明文")
+    st.write("text")
+    st.write("・")
+    st.write("・")
+    st.write("・")
+    st.write("text")
 
-# よいこポイント
-with st.sidebar:
-    st.markdown("### よいこポイント")
-    points_box = st.empty()  # ←★追加：あとで更新する表示箱
-    points_box.metric("いまのポイント", st.session_state["total_points"])  
-    st.caption("もくひょうポイント： （あとで決めよう）") # 後で決める
+# ==========================================
+# 5. チャット / ポイント機能
+# ==========================================
 
-# ---------------------------
-# モード切替時に会話履歴をリセット
-# ---------------------------
+# Supabaseから有効なキーワード取得
+def fetch_active_keywords():
+    res = supabase.table("Otetsudai_Keywords") \
+        .select("id, keyword, points, category") \
+        .eq("is_active", True) \
+        .execute()
+    return res.data or []
 
-if "current_mode" not in st.session_state:
-    st.session_state["current_mode"] = mode
+# 入力文 → マッチ判定して加点計算
+def calc_points(text, keywords):
+    matched_rows = [row for row in keywords if row["keyword"] in text]
+    total = sum(r["points"] for r in matched_rows)
+    return total, matched_rows
 
-# 「今回選んだモード」と「前回のモード」が違うかチェック！
-if st.session_state["current_mode"] != mode:
-    # 違っていたら（＝切り替えたら）、会話履歴を空っぽにする
-    st.session_state["messages"] = []
-    # 「前回のモード」を新しい方に更新しておく
-    st.session_state["current_mode"] = mode
+# Points_logに保存
+def insert_points_log(child_id, matched_rows, user_text):
+    for r in matched_rows:
+        supabase.table("Points_log").insert({
+            "child_id": child_id,
+            "keyword_id": r["id"],
+            "matched_text": user_text,
+            "points": r["points"],
+        }).execute()
+
+# For_Children
+def upsert_child_total(child_id, new_total):
+    supabase.table("children").update({
+        "total_points": new_total
+    }).eq("id", child_id).execute()
 
 # ---------------------------
 # キャラプロンプト
@@ -211,141 +265,146 @@ ONI_PROMPT = """
 - 大人向けの説教、長すぎる説明、現実的すぎる話はしない。
 - 子どもの気持ちを無視して一方的に怒鳴り続けない。
 """
-# 5. モードに合わせて変数の中身を変える
-if mode == "サンタさん 🎅":
-    header_title = "🎅 サンタさんとおはなししよう！" 
-    system_prompt = SANTA_PROMPT
-    ai_avatar = "🎅"
-else:
-    header_title = "👹 コラ！おにさんだぞ！" 
-    system_prompt = ONI_PROMPT
-    ai_avatar = "👹"
 
-# Supabaseから有効なキーワード取得
-def fetch_active_keywords():
-    res = supabase.table("Otetsudai_Keywords") \
-        .select("id, keyword, points, category") \
-        .eq("is_active", True) \
+    # ---- サイドバー（モード/名前/ポイント）----
+    # モード切り替え
+mode = st.sidebar.radio("だれとおはなしする？", ["サンタさん 🎅", "おにさん 👹"])
+
+    # モード切替時に会話履歴をリセット
+if "current_mode" not in st.session_state:
+            st.session_state["current_mode"] = mode
+if st.session_state["current_mode"] != mode:
+            st.session_state["messages"] = []
+            st.session_state["current_mode"] = mode
+
+if mode == "サンタさん 🎅":
+            header_title = "🎅 サンタさんとおはなししよう！"
+            system_prompt = SANTA_PROMPT
+            ai_avatar = "🎅"
+else:
+            header_title = "👹 コラ！おにさんだぞ！"
+            system_prompt = ONI_PROMPT
+            ai_avatar = "👹"
+
+def fetch_children_for_user(user_id: str):
+    # todo childrenテーブル作成要！
+    res = (
+        supabase.table("children")
+        .select("id, child_name, total_points")
+        .eq("user_id", user_id)
+        .order("child_name")
         .execute()
+    )
     return res.data or []
 
-# 入力文 → マッチ判定して加点計算
-def calc_points(text, keywords):
-    matched_rows = []
-    for row in keywords:
-        if row["keyword"] in text:
-            matched_rows.append(row)
-    total = sum(r["points"] for r in matched_rows)
-    return total, matched_rows
 
-# Points_logに保存
-def insert_points_log(child_name, matched_rows, user_text):
-    for r in matched_rows:
-        supabase.table("Points_log").insert({
-            "child_name": child_name,
-            "keyword_id": r["id"],
-            "matched_text": user_text,
-            "points": r["points"],
-        }).execute()
+def render_chat():
+    # ---- サイドバー：モード切替 ----
+    mode = st.sidebar.radio("だれとおはなしする？", ["サンタさん 🎅", "おにさん 👹"])
 
-# For_Children
-def upsert_child_total(child_name, new_total):
-    supabase.table("For_Children").upsert({
-        "child_name": child_name,
-        "total_points": new_total
-    }).execute()
+    if "current_mode" not in st.session_state:
+        st.session_state["current_mode"] = mode
+    if st.session_state["current_mode"] != mode:
+        st.session_state["messages"] = []
+        st.session_state["current_mode"] = mode
 
-if "show_end_dialog" not in st.session_state:
-    st.session_state["show_end_dialog"] = False
+    if mode == "サンタさん 🎅":
+        header_title = "🎅 サンタさんとおはなししよう！"
+        system_prompt = SANTA_PROMPT
+        ai_avatar = "🎅"
+    else:
+        header_title = "👹 コラ！おにさんだぞ！"
+        system_prompt = ONI_PROMPT
+        ai_avatar = "👹"
 
-# --------------------------------
-# 画面レイアウト（左/右）
-# --------------------------------
-left_col, right_col = st.columns([1, 4], gap="large")
+    # ---- 子ども選択 ----
+    user_id = st.session_state["auth_user"]["id"]
+    children = fetch_children_for_user(user_id)
 
-# 右側メインUI
-with right_col:
-    # ヘッダー行（タイトル＋終了ボタン）
-    col_title, col_btn = st.columns([8, 2])
-    with col_title:
-        st.markdown(f'<div class="app-title">{header_title}</div>', unsafe_allow_html=True)
-    with col_btn:
-        if st.button("チャットを終わる"):
-            st.session_state["show_end_dialog"] = True  # ←ダイアログ表示フラグON
+    if not children:
+        st.sidebar.warning("まずは こどもをとうろくしてね（管理画面で追加予定）")
+        st.stop()
 
-    if mode == "おにさん 👹":
-        st.error("いうことをきかないこは、おにさんがくるぞ……！")
-
-    # イラスト枠（仮URL）
-    st.image(
-        "https://eiyoushi-hutaba.com/wp-content/uploads/2022/11/%E3%82%B5%E3%83%B3%E3%82%BF%E3%81%95%E3%82%93-940x940.png",
-        width=200,  # ←サイズはここで調整
-        caption="サンタさん"
+    child_options = {c["child_name"]: c for c in children}
+    selected_child_name = st.sidebar.selectbox(
+        "だれがおはなしする？（こどもをえらんでね）",
+        list(child_options.keys())
     )
+    selected_child = child_options[selected_child_name]
 
-    st.write("")
+    st.session_state["child_id"] = selected_child["id"]
+    st.session_state["child_name"] = selected_child["child_name"]
+    st.session_state["total_points"] = selected_child["total_points"]
 
-# ==========================================
-# 2. チャットのロジック部分
-# ==========================================
+    # ---- サイドバー：ポイント表示 ----
+    with st.sidebar:
+        st.markdown("### よいこポイント")
+        points_box = st.empty()
+        points_box.metric("いまのポイント", st.session_state["total_points"])
+        st.caption("もくひょうポイント： （あとで決めよう）")
 
-# セッション（会話履歴）の初期化
-if "messages" not in st.session_state or len(st.session_state["messages"]) == 0:
-    st.session_state["messages"] = [
-        {"role": "system", "content": system_prompt}
-    ]
+    # ---- 画面レイアウト ----
+    left_col, right_col = st.columns([1, 4], gap="large")
 
-# モードを切り替えたら、AIの中身（システムプロンプト）も強制的に書き換える
-st.session_state.messages[0] = {"role": "system", "content": system_prompt}
+    with right_col:
+        col_title, col_btn = st.columns([8, 2])
+        with col_title:
+            st.markdown(f'<div class="app-title">{header_title}</div>', unsafe_allow_html=True)
+        with col_btn:
+            if st.button("チャットを終わる"):
+                st.session_state["show_end_dialog"] = True
 
-# 会話履歴の表示
-for msg in st.session_state.messages:
-    if msg["role"] != "system":
-        # AIのアイコンは、現在のモード（ai_avatar）を使う
-        if msg["role"] == "assistant":
-            icon = ai_avatar
-        else:
-            icon = "🧒"
-            
+        if mode == "おにさん 👹":
+            st.error("いうことをきかないこは、おにさんがくるぞ……！")
+
+        st.image(
+            "https://eiyoushi-hutaba.com/wp-content/uploads/2022/11/%E3%82%B5%E3%83%B3%E3%82%BF%E3%81%95%E3%82%93-940x940.png",
+            width=200,
+            caption="サンタさん"
+        )
+
+    # ---- 会話履歴初期化 ----
+    if "messages" not in st.session_state or len(st.session_state["messages"]) == 0:
+        st.session_state["messages"] = [{"role": "system", "content": system_prompt}]
+    else:
+        st.session_state["messages"][0] = {"role": "system", "content": system_prompt}
+
+    # ---- 履歴表示 ----
+    for msg in st.session_state["messages"]:
+        if msg["role"] == "system":
+            continue
+        icon = ai_avatar if msg["role"] == "assistant" else "🧒"
         with st.chat_message(msg["role"], avatar=icon):
             st.markdown(msg["content"])
 
-# ==========================================
-# 3. ユーザーの入力と応答
-# ==========================================
+    # ---- 入力（1回だけ）----
+    if user_input := st.chat_input("ここになにかかいてね..."):
+        st.session_state["show_end_dialog"] = False
 
-# ユーザーが何か入力したら実行される
-if user_input := st.chat_input("ここになにかかいてね..."):
+        with st.chat_message("user", avatar="🧒"):
+            st.markdown(user_input)
+        st.session_state["messages"].append({"role": "user", "content": user_input})
 
-    st.session_state["show_end_dialog"] = False 
-
-    # ユーザーの入力表示
-    with st.chat_message("user", avatar="🧒"):
-        st.markdown(user_input)
-    st.session_state.messages.append({"role": "user", "content": user_input})
-
- # キーワード判定 → ポイント加算
-    if st.session_state["child_name"]:
+        # 加点処理
         keywords = fetch_active_keywords()
         add_points, matched_rows = calc_points(user_input, keywords)
 
         if add_points > 0:
             st.session_state["total_points"] += add_points
+            points_box.metric("いまのポイント", st.session_state["total_points"])
 
-        points_box.metric("いまのポイント", st.session_state["total_points"])
+            insert_points_log(st.session_state["child_id"], matched_rows, user_input)
+            upsert_child_total(st.session_state["child_id"], st.session_state["total_points"])
 
-        insert_points_log(st.session_state["child_name"], matched_rows, user_input)
-        upsert_child_total(st.session_state["child_name"], st.session_state["total_points"])
-
-        matched_words = [r["keyword"] for r in matched_rows]
-        st.success(f"すごい！「{'、'.join(matched_words)}」で {add_points} てん たまったよ！")
+            matched_words = [r["keyword"] for r in matched_rows]
+            st.success(f"すごい！「{'、'.join(matched_words)}」で {add_points} てん たまったよ！")
 
     # AIからの返答
     try:
         # === 変更点 1: stream=True でストリーム応答にする ===
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=st.session_state.messages,
+            messages=st.session_state["messages"],
             stream=True  # ← 追加
         )
 
@@ -369,9 +428,7 @@ if user_input := st.chat_input("ここになにかかいてね..."):
     except Exception as e:
         st.error(f"エラーが発生しました: {e}")
 
-# ==========================================
-# 4. チャット終了ダイアログ
-# ==========================================
+#チャット終了ダイアログ
 if "show_end_dialog" not in st.session_state:
     st.session_state["show_end_dialog"] = False
 
@@ -409,3 +466,11 @@ if st.session_state["show_end_dialog"]:
                     st.error("ぱすわーどがちがうよ。")
 
     end_chat_dialog()
+
+    # ==========================================
+# 6. 画面ルーティング
+# ==========================================
+if not st.session_state["is_logged_in"]:
+    render_lp()
+else:
+    render_chat()
