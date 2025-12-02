@@ -285,38 +285,6 @@ ONI_PROMPT = """
 - 子どもの気持ちを無視して一方的に怒鳴り続けない。
 """
 
-    # ---- サイドバー（モード/名前/ポイント）----
-    # モード切り替え
-mode = st.sidebar.radio("だれとおはなしする？", ["サンタさん 🎅", "おにさん 👹"])
-
-    # モード切替時に会話履歴をリセット
-if "current_mode" not in st.session_state:
-            st.session_state["current_mode"] = mode
-if st.session_state["current_mode"] != mode:
-            st.session_state["messages"] = []
-            st.session_state["current_mode"] = mode
-
-if mode == "サンタさん 🎅":
-            header_title = "🎅 サンタさんとおはなししよう！"
-            system_prompt = SANTA_PROMPT
-            ai_avatar = "🎅"
-else:
-            header_title = "👹 コラ！おにさんだぞ！"
-            system_prompt = ONI_PROMPT
-            ai_avatar = "👹"
-
-def fetch_children_for_user(user_id: str):
-    # todo childrenテーブル作成要！
-    res = (
-        supabase.table("children")
-        .select("id, child_name, total_points")
-        .eq("user_id", user_id)
-        .order("child_name")
-        .execute()
-    )
-    return res.data or []
-
-
 def render_chat():
     # ---- サイドバー：モード切替 ----
     mode = st.sidebar.radio("だれとおはなしする？", ["サンタさん 🎅", "おにさん 👹"])
@@ -400,50 +368,46 @@ def render_chat():
     if user_input := st.chat_input("ここになにかかいてね..."):
         st.session_state["show_end_dialog"] = False
 
-        with st.chat_message("user", avatar="🧒"):
-            st.markdown(user_input)
-        st.session_state["messages"].append({"role": "user", "content": user_input})
+    with st.chat_message("user", avatar="🧒"):
+        st.markdown(user_input)
+    st.session_state["messages"].append({"role": "user", "content": user_input})
 
-        # 加点処理
-        keywords = fetch_active_keywords()
-        add_points, matched_rows = calc_points(user_input, keywords)
+    # 加点処理
+    keywords = fetch_active_keywords()
+    add_points, matched_rows = calc_points(user_input, keywords)
 
-        if add_points > 0:
-            st.session_state["total_points"] += add_points
-            points_box.metric("いまのポイント", st.session_state["total_points"])
+    if add_points > 0:
+        st.session_state["total_points"] += add_points
+        points_box.metric("いまのポイント", st.session_state["total_points"])
 
-            insert_points_log(st.session_state["child_id"], matched_rows, user_input)
-            upsert_child_total(st.session_state["child_id"], st.session_state["total_points"])
+        insert_points_log(st.session_state["child_id"], matched_rows, user_input)
+        upsert_child_total(st.session_state["child_id"], st.session_state["total_points"])
 
-            matched_words = [r["keyword"] for r in matched_rows]
-            st.success(f"すごい！「{'、'.join(matched_words)}」で {add_points} てん たまったよ！")
+        matched_words = [r["keyword"] for r in matched_rows]
+        st.success(f"すごい！「{'、'.join(matched_words)}」で {add_points} てん たまったよ！")
 
-    # AIからの返答
+    # AI返答
     try:
-        # === 変更点 1: stream=True でストリーム応答にする ===
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=st.session_state["messages"],
-            stream=True  # ← 追加
+            stream=True
         )
 
-         # === 変更点 2: st.empty() を使って逐次表示 ===
         with st.chat_message("assistant", avatar=ai_avatar):
-            message_placeholder = st.empty()  # ← 追加（表示場所を確保）
-            full_response = ""               # ← 追加（全文をためる箱）
+            message_placeholder = st.empty()
+            full_response = ""
 
-            for chunk in response:           # ← 追加（ストリームを回す）
+            for chunk in response:
                 delta = chunk.choices[0].delta
                 token = delta.content if delta and delta.content else ""
                 full_response += token
-                message_placeholder.markdown(full_response + "▌")  # ← 追加（途中経過表示）
+                message_placeholder.markdown(full_response + "▌")
 
-            message_placeholder.markdown(full_response)  # ← 追加（最後に確定表示）
+            message_placeholder.markdown(full_response)
 
-        ai_reply = full_response  # ← 追加（履歴保存用）
+        st.session_state["messages"].append({"role": "assistant", "content": full_response})
 
-        st.session_state.messages.append({"role": "assistant", "content": ai_reply})
-        
     except Exception as e:
         st.error(f"エラーが発生しました: {e}")
 
