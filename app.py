@@ -205,11 +205,20 @@ def insert_points_log(child_id, matched_rows, user_text):
             "points": r["points"],
         }).execute()
 
-# For_Children
+# For_Children →　childmasterへポイント集積結果の反映先を変更
 def upsert_child_total(child_id, new_total):
-    supabase.table("children").update({
+    supabase.table("chilmaster").update({
         "total_points": new_total
     }).eq("id", child_id).execute()
+
+# 子ども情報取得 #<確認>childmaster内の子どもの名前はchild_nameにしてはどうか？
+def fetch_children_for_user(user_id):
+    res = supabase.table("childmaster") \
+        .select("*") \
+        .eq("user_id", user_id) \
+        .execute()
+    return res.data or []
+
 
 # ---------------------------
 # キャラプロンプト
@@ -307,22 +316,22 @@ def render_chat():
         ai_avatar = "👹"
 
     # ---- 子ども選択 ----
-    user_id = st.session_state["auth_user"]["id"]
+    user_id = st.session_state["auth_user"]["user_id"]
     children = fetch_children_for_user(user_id)
 
     if not children:
         st.sidebar.warning("まずは こどもをとうろくしてね（管理画面で追加予定）")
         st.stop()
 
-    child_options = {c["child_name"]: c for c in children}
+    child_options = {c["name"]: c for c in children} #＜確認＞childmaster内の子どもの名前はchild_nameにしてはどうか？
     selected_child_name = st.sidebar.selectbox(
         "だれがおはなしする？（こどもをえらんでね）",
         list(child_options.keys())
     )
     selected_child = child_options[selected_child_name]
 
-    st.session_state["child_id"] = selected_child["id"]
-    st.session_state["child_name"] = selected_child["child_name"]
+    st.session_state["child_id"] = selected_child["child_id"]
+    st.session_state["name"] = selected_child["name"] #<確認>childmaster内の子どもの名前はchild_nameにしてはどうか？
     st.session_state["total_points"] = selected_child["total_points"]
 
     # ---- サイドバー：ポイント表示 ----
