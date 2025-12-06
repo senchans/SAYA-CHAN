@@ -124,7 +124,7 @@ def login_dialog():
             st.session_state["is_logged_in"] = True
             st.session_state["page"] = "chat"
             st.success("ログイン成功")
-            st.rerun()
+            st.switch_page("pages/dashboard.py")
         else:
             st.error("メールアドレスまたはパスワードが正しくありません。")
 
