@@ -2,8 +2,6 @@ import os
 import streamlit as st
 from openai import OpenAI
 from supabase import create_client, Client  # Supabase接続
-import uuid
-from datetime import datetime
 
 # ==========================================
 # 0. ページ設定
