@@ -191,6 +191,8 @@ def fetch_active_keywords():
 
 # 入力文 → マッチ判定して加点計算
 def calc_points(text, keywords):
+    if not text:    #初期値でテキストが入力されていない場合の対応
+        return 0, []
     matched_rows = [row for row in keywords if row["keyword"] in text]
     total = sum(r["points"] for r in matched_rows)
     return total, matched_rows
@@ -377,11 +379,12 @@ def render_chat():
 
     # ---- 入力（1回だけ）----
     if user_input := st.chat_input("ここになにかかいてね..."):
-        st.session_state["show_end_dialog"] = False
+        if user_input: #入力欄が未入力の場合の対応
+            st.session_state["show_end_dialog"] = False
 
-    with st.chat_message("user", avatar="🧒"):
-        st.markdown(user_input)
-    st.session_state["messages"].append({"role": "user", "content": user_input})
+        with st.chat_message("user", avatar="🧒"):
+            st.markdown(user_input)
+        st.session_state["messages"].append({"role": "user", "content": user_input})
 
     # 加点処理
     keywords = fetch_active_keywords()
