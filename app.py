@@ -211,7 +211,7 @@ def upsert_child_total(child_id, new_total):
         "total_points": new_total
     }).eq("id", child_id).execute()
 
-# 子ども情報取得 #<確認>childmaster内の子どもの名前はchild_nameにしてはどうか？
+# 子ども情報取得  #<確認>childmaster内の子どもの名前はchild_nameにしてはどうか？
 def fetch_children_for_user(user_id):
     res = supabase.table("childmaster") \
         .select("*") \
