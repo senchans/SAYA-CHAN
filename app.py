@@ -124,6 +124,7 @@ def login_dialog():
         if result.data:
             st.session_state["auth_user"] = result.data[0]
             st.session_state["is_logged_in"] = True
+            st.session_state["user_id"] = user["user_id"] #追加：user_idをセッションに保存
             st.session_state["page"] = "chat"
             st.success("ログイン成功")
             st.switch_page("pages/dashboard.py")
@@ -198,20 +199,20 @@ def calc_points(text, keywords):
     return total, matched_rows
 
 # Points_logに保存
-def insert_points_log(child_id, matched_rows, user_text):
+def insert_points_log(id, matched_rows, user_text):
     for r in matched_rows:
         supabase.table("Points_log").insert({
-            "child_id": child_id,
+            "child_id": id,
             "keyword_id": r["id"],
             "matched_text": user_text,
             "points": r["points"],
         }).execute()
 
 # For_Children →　childmasterへポイント集積結果の反映先を変更
-def upsert_child_total(child_id, new_total):
-    supabase.table("chilmaster").update({
+def upsert_child_total(id, new_total): #idはchild_id（主キー）に名称変更してもいいかも
+    supabase.table("childmaster").update({
         "total_points": new_total
-    }).eq("id", child_id).execute()
+    }).eq("id", id).execute()
 
 # 子ども情報取得  #<確認>childmaster内の子どもの名前はchild_nameにしてはどうか？
 def fetch_children_for_user(user_id):
@@ -332,8 +333,9 @@ def render_chat():
     )
     selected_child = child_options[selected_child_name]
 
-    st.session_state["child_id"] = selected_child["child_id"]
+    st.session_state["id"] = selected_child["id"] #idはchild_idに名称変更してもいいかも
     st.session_state["name"] = selected_child["name"] #<確認>childmaster内の子どもの名前はchild_nameにしてはどうか？
+    st.session_state["user_id"]= selected_child["user_id"]
     st.session_state["total_points"] = selected_child["total_points"]
 
     # ---- サイドバー：ポイント表示 ----
@@ -394,8 +396,8 @@ def render_chat():
         st.session_state["total_points"] += add_points
         points_box.metric("いまのポイント", st.session_state["total_points"])
 
-        insert_points_log(st.session_state["child_id"], matched_rows, user_input)
-        upsert_child_total(st.session_state["child_id"], st.session_state["total_points"])
+        insert_points_log(st.session_state["id"], matched_rows, user_input) #idはchild_idに名称変更してもいいかも
+        upsert_child_total(st.session_state["id"], st.session_state["total_points"]) #idはchild_idに名称変更してもいいかも
 
         matched_words = [r["keyword"] for r in matched_rows]
         st.success(f"すごい！「{'、'.join(matched_words)}」で {add_points} てん たまったよ！")
@@ -438,24 +440,39 @@ if st.session_state["show_end_dialog"]:
         # ★ここでパスワード入力
         pw = st.text_input("パスワード", type="password")
 
-        # TODO: ここに「正しいパスワード」をあとで設定する
-        # ex) CORRECT_PASSWORD = "xxxx"
-        CORRECT_PASSWORD = "password"  # ←あとで決めた値に差し替える
+        # 照合先のpasswordをSupabaseから取得するキーとしてuser_idを使う
+        user_id = st.session_state.get("user_id")
+
 
         col_a, col_b = st.columns(2)
+        # キャンセル処理
         with col_a:
             if st.button("キャンセル"):
                 st.session_state["show_end_dialog"] = False
                 st.rerun()
 
+        # チャット終了処理
         with col_b:
             if st.button("チャットを終わる"):
-                # ★パスワード一致チェック
+
+                # Supabaseから保護者のパスワードを取得
+                res = (
+                    supabase.table("usermaster")
+                    .select("password")
+                    .eq("user_id", user_id)
+                    .execute()
+                )
+                # ★パスワードチェック
+                if res.data is None:
+                    st.error("ぱすわーどがちがうよ。")
+                    return
+                
+                CORRECT_PASSWORD = res.data[0]["password"]
+
+                # パスワードが正しければチャット終了
                 if pw == CORRECT_PASSWORD:
                     st.session_state["show_end_dialog"] = False
-
-                    # TODO: ここで「親の管理画面」に遷移する想定
-                    # いまは管理画面未実装なので、会話履歴リセットだけしておく
+                    # チャット終了処理
                     st.session_state["messages"] = []
                     st.success("チャットをおわったよ。")
                     st.rerun()
