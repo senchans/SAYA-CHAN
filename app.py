@@ -10,7 +10,7 @@ from datetime import datetime
 # ==========================================
 
 # ページの設定（タイトルやアイコン）
-st.set_page_config(page_title="いいこのおはなしアプリ", page_icon="🎁", layout="wide")  # wideで横長UI
+st.set_page_config(page_title="いいこログ", page_icon="🎁", layout="wide")  # wideで横長UI
 
 # ---- CSSでざっくりフレーム寄せ（見た目調整）----
 # === UI変更点: 左ポイント枠/右チャット枠の雰囲気を近づける ===
@@ -124,6 +124,7 @@ def login_dialog():
         if result.data:
             st.session_state["auth_user"] = result.data[0]
             st.session_state["is_logged_in"] = True
+            user = st.session_state.auth_user
             st.session_state["user_id"] = user["user_id"] #追加：user_idをセッションに保存
             st.session_state["page"] = "chat"
             st.success("ログイン成功")
@@ -170,13 +171,13 @@ def render_lp():
         if st.button("新規登録"):
             signup_dialog()
 
-    st.header("サンタさんチャットアプリへようこそ！")
-    st.subheader("説明文")
-    st.write("text")
-    st.write("・")
-    st.write("・")
-    st.write("・")
-    st.write("text")
+    st.header("いいこログへようこそ！")
+    st.subheader("いいこログ ～サンタさんからプレゼント～")
+    st.write("サンタさんとチャットをして、クリスマスに欲しいものを伝えよう。")
+    st.write("・機能説明")
+    st.write("・機能説明")
+    st.write("・機能説明")
+    st.write("さっそく使ってみましょう！")
 
 # ==========================================
 # 5. チャット / ポイント機能
