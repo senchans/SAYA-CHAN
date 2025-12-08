@@ -184,9 +184,10 @@ def render_lp():
 # ==========================================
 
 # Supabaseから有効なキーワード取得
+# DB名称変更を修正
 def fetch_active_keywords():
-    res = supabase.table("Otetsudai_Keywords") \
-        .select("id, keyword, points, category") \
+    res = supabase.table("taskmaster") \
+        .select("task_id, task_name, point, category") \
         .eq("is_active", True) \
         .execute()
     return res.data or []
@@ -195,25 +196,25 @@ def fetch_active_keywords():
 def calc_points(text, keywords):
     if not text:    #初期値でテキストが入力されていない場合の対応
         return 0, []
-    matched_rows = [row for row in keywords if row["keyword"] in text]
-    total = sum(r["points"] for r in matched_rows)
+    matched_rows = [row for row in keywords if row["task_name"] in text]
+    total = sum(r["point"] for r in matched_rows)
     return total, matched_rows
 
-# Points_logに保存
-def insert_points_log(id, matched_rows, user_text):
+# Points_logに保存 → pointledgerへ変更
+def insert_points_log(child_id, matched_rows, user_text):
     for r in matched_rows:
-        supabase.table("Points_log").insert({
-            "child_id": id,
-            "keyword_id": r["id"],
-            "matched_text": user_text,
-            "points": r["points"],
+        supabase.table("pointledger").insert({
+            "child_id": child_id,
+            "task_id": r["task_id"],
+            "task_name": user_text,
+            "point": r["point"],
         }).execute()
 
 # For_Children →　childmasterへポイント集積結果の反映先を変更
-def upsert_child_total(id, new_total): #idはchild_id（主キー）に名称変更してもいいかも
+def upsert_child_total(child_id, new_total):
     supabase.table("childmaster").update({
         "total_points": new_total
-    }).eq("id", id).execute()
+    }).eq("child_id", child_id).execute()
 
 # 子ども情報取得  #<確認>childmaster内の子どもの名前はchild_nameにしてはどうか？
 def fetch_children_for_user(user_id):
@@ -334,17 +335,25 @@ def render_chat():
     )
     selected_child = child_options[selected_child_name]
 
-    st.session_state["id"] = selected_child["id"] #idはchild_idに名称変更してもいいかも
+    st.session_state["child_id"] = selected_child["child_id"]
     st.session_state["name"] = selected_child["name"] #<確認>childmaster内の子どもの名前はchild_nameにしてはどうか？
     st.session_state["user_id"]= selected_child["user_id"]
     st.session_state["total_points"] = selected_child["total_points"]
+    if st.session_state["total_points"] not in st.session_state or st.session_state["total_points"] is None:
+        st.session_state["total_points"] = 0
 
     # ---- サイドバー：ポイント表示 ----
     with st.sidebar:
         st.markdown("### よいこポイント")
-        points_box = st.empty()
-        points_box.metric("いまのポイント", st.session_state["total_points"])
-        st.caption("もくひょうポイント： （あとで決めよう）")
+        points_box1 = st.empty()
+        points_box1.metric("いまのポイント", st.session_state["total_points"])
+    #   もくひょうポイント
+        goal_points =  selected_child.get("goal_points")
+    #    Noneのときはデフォルト値を50に設定
+        if goal_points is None:
+            goal_points = 50  # デフォルト目標ポイント
+        points_box2 = st.empty()
+        points_box2.metric("もくひょうポイント", goal_points)
 
     # ---- 画面レイアウト ----
     left_col, right_col = st.columns([1, 4], gap="large")
@@ -395,12 +404,12 @@ def render_chat():
 
     if add_points > 0:
         st.session_state["total_points"] += add_points
-        points_box.metric("いまのポイント", st.session_state["total_points"])
+        points_box1.metric("いまのポイント", st.session_state["total_points"])
 
-        insert_points_log(st.session_state["id"], matched_rows, user_input) #idはchild_idに名称変更してもいいかも
-        upsert_child_total(st.session_state["id"], st.session_state["total_points"]) #idはchild_idに名称変更してもいいかも
+        insert_points_log(st.session_state["child_id"], matched_rows, user_input)
+        upsert_child_total(st.session_state["child_id"], st.session_state["total_points"])
 
-        matched_words = [r["keyword"] for r in matched_rows]
+        matched_words = [r["task_name"] for r in matched_rows]
         st.success(f"すごい！「{'、'.join(matched_words)}」で {add_points} てん たまったよ！")
 
     # AI返答
