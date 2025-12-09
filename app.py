@@ -9,11 +9,42 @@ from datetime import datetime
 # 0. ページ設定
 # ==========================================
 
+from streamlit_extras.let_it_rain import rain
+
+# 雪降らし
+rain(
+    emoji="❄️",
+    font_size=10,            # 雪の大きさ
+    falling_speed=6.0,       # 落下速度（1.0-3.0目安）
+    animation_length="infinite",  # ずっと降らせる
+)
+
+# 壁紙設定（後で変えたい）
+st.set_page_config(page_title="Wallpaper", layout="wide")
+
+bg_url = "https://ibqjfzinmlhvoxcfnvrx.supabase.co/storage/v1/object/sign/imgfiles/background_snow.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZDk1NzYwNC00ODQyLTRhNjItOTYwMi04ZGUyOTY3ZjcwN2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbWdmaWxlcy9iYWNrZ3JvdW5kX3Nub3cucG5nIiwiaWF0IjoxNzY1MjI5OTg3LCJleHAiOjQ4ODcyOTM5ODd9.bg5sUS6XJ97UcxJwbNgYQCiprRZmZQ7MUPLv442nXu0"
+
+st.markdown(
+    f"""
+    <style>
+    /* アプリ全体の背景 */
+    .stApp {{
+        background-image: url("{bg_url}");
+        background-size: cover;          /* 画面に敷き詰め（比率維持で全面） */
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;   /* スクロールしても背景固定 */
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # ページの設定（タイトルやアイコン）
 st.set_page_config(page_title="いいこログ", page_icon="🎁", layout="wide")  # wideで横長UI
 
 # ---- CSSでざっくりフレーム寄せ（見た目調整）----
-# === UI変更点: 左ポイント枠/右チャット枠の雰囲気を近づける ===
+# === UI変更点: 左ポイント枠/右チャット枠の雰囲気を近づける ===py -m streamlit run app.py
 st.markdown("""
 <style>
 /* ページ全体の左右余白を減らす */
@@ -171,13 +202,13 @@ def render_lp():
         if st.button("新規登録"):
             signup_dialog()
 
-    st.header("いいこログへようこそ！")
-    st.subheader("いいこログ ～サンタさんからプレゼント～")
-    st.write("サンタさんとチャットをして、クリスマスに欲しいものを伝えよう。")
-    st.write("・機能説明")
-    st.write("・機能説明")
-    st.write("・機能説明")
-    st.write("さっそく使ってみましょう！")
+    st.header("いいこログ　～サンタさんからプレゼント～　へようこそ！")
+    st.subheader("サンタさんとおはなしして、いいこポイントをためよう！")
+    st.write("がんばったことや おてつだいしたことを つたえると、ポイントがふえるよ")
+    st.write("サンタさんにこっそりほしいものをおしえてみよう")
+    st.write("いいこはプレゼントがもらえるかもしれないよ")
+    st.write("じゅんびはいい？")
+    st.write("さっそくおはなししてみよう！")
 
 # ==========================================
 # 5. チャット / ポイント機能
@@ -411,6 +442,9 @@ def render_chat():
 
         matched_words = [r["task_name"] for r in matched_rows]
         st.success(f"すごい！「{'、'.join(matched_words)}」で {add_points} てん たまったよ！")
+
+        # 加点時に風船
+        st.balloons()
 
     # AI返答
     try:
