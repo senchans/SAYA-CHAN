@@ -11,6 +11,9 @@ from datetime import datetime
 
 from streamlit_extras.let_it_rain import rain
 
+# ページの設定（タイトルやアイコン）
+st.set_page_config(page_title="いいこログ", page_icon="🎁", layout="wide")  # wideで横長UI
+
 # 雪降らし
 rain(
     emoji="❄️",
@@ -20,8 +23,6 @@ rain(
 )
 
 # 壁紙設定（後で変えたい）
-st.set_page_config(page_title="Wallpaper", layout="wide")
-
 bg_url = "https://ibqjfzinmlhvoxcfnvrx.supabase.co/storage/v1/object/sign/imgfiles/background_snow.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZDk1NzYwNC00ODQyLTRhNjItOTYwMi04ZGUyOTY3ZjcwN2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbWdmaWxlcy9iYWNrZ3JvdW5kX3Nub3cucG5nIiwiaWF0IjoxNzY1MjI5OTg3LCJleHAiOjQ4ODcyOTM5ODd9.bg5sUS6XJ97UcxJwbNgYQCiprRZmZQ7MUPLv442nXu0"
 
 st.markdown(
@@ -30,9 +31,9 @@ st.markdown(
     /* アプリ全体の背景 */
     .stApp {{
         background-image: url("{bg_url}");
-        background-size: cover;          /* 画面に敷き詰め（比率維持で全面） */
+        background-repeat: repeat;
+        background-size: 160px auto;  /* 好きな細かさに調整 */
         background-position: center;
-        background-repeat: no-repeat;
         background-attachment: fixed;   /* スクロールしても背景固定 */
     }}
     </style>
@@ -40,8 +41,161 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ページの設定（タイトルやアイコン）
-st.set_page_config(page_title="いいこログ", page_icon="🎁", layout="wide")  # wideで横長UI
+st.markdown("""
+<style>
+/* ====== 全体（紙っぽいカード感） ====== */
+.block-container {
+    background: transparent;
+    border-radius: 0px; 
+    box-shadow: none;
+    padding: 1.6rem 2rem 2.2rem; 
+}
+
+/* ====== サイドバー（絵本の表紙） ====== */
+section[data-testid="stSidebar"] {
+    background: rgba(255,255,255,0.82);
+    backdrop-filter: blur(6px);
+    border-right: 2px solid rgba(255,255,255,0.9);
+}
+section[data-testid="stSidebar"] * {
+    color: #23324a; /* 文字色：濃いネイビー */
+}
+
+/* サイドバーの見出し */
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 {
+    color: #c62828; /* クリスマス赤 */
+    font-weight: 700;
+}
+
+/* ラジオ・セレクトの箱を丸く */
+section[data-testid="stSidebar"] .stRadio,
+section[data-testid="stSidebar"] .stSelectbox {
+    background: rgba(255,255,255,0.9);
+    padding: 10px 12px;
+    border-radius: 14px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+
+/* ====== チャット吹き出し ====== */
+div[data-testid="stChatMessage"] {
+    padding: 12px 14px;
+    border-radius: 18px;
+    margin-bottom: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    background: rgba(255,255,255,0.92);
+}
+/* サンタ側だけ少し色味を変える*/
+div[data-testid="stChatMessage"]:has(img[alt="assistant"]) {
+    background: rgba(255,245,245,0.98);
+}
+
+/* ====== ボタンをクリスマス風に統一 ====== */
+button[kind="primary"] {
+    background: #e53935 !important;
+    color: white !important;
+    border-radius: 999px !important;
+    padding: 0.6rem 1.2rem !important;
+    border: none !important;
+    box-shadow: 0 6px 14px rgba(0,0,0,0.18) !important;
+}
+button[kind="primary"]:hover {
+    background: #c62828 !important;
+}
+
+/* ====== タイトル装飾の余白 ====== */
+h1, h2, h3 {
+    text-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+</style>
+            
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+/* ====== 全体の本文・見出しを絵本っぽく ====== */
+html, body, [class*="css"]  {
+    line-height: 1.55;          /* 行間を詰めて読みやすく */
+    letter-spacing: 0.02em;     /* 少しだけ字間を広げてやわらかく */
+}
+
+/* 見出しの雰囲気（太すぎ＆硬すぎを防ぐ） */
+h1, h2, h3 {
+    font-weight: 700;
+    line-height: 1.25;
+    margin-bottom: 0.6rem;
+}
+
+/* 段落の余白を詰める（今の“スカスカ”の原因） */
+p, li {
+    margin-bottom: 0.35rem !important;
+}
+
+/* Streamlitのwriteが作る余白ブロックも少し詰める */
+div[data-testid="stMarkdownContainer"] {
+    margin-bottom: 0.2rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div class="hero-card">
+  <div class="hero-title">いいこログ  ～サンタさんからプレゼント～</div>
+  <div class="hero-sub">サンタさんとおはなしして、いいこポイントをためよう！</div>
+
+  <ul class="hero-list">
+    <li>がんばったことや おてつだいしたことを つたえると、ポイントがふえるよ。</li>
+    <li>サンタさんに こっそり ほしいものを おしえてみよう。</li>
+    <li>いいこは クリスマスに プレゼントが もらえるかもしれないよ。</li>
+  </ul>
+
+  <div class="hero-foot">じゅんびはいい？ さっそく はじめよう！</div>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+/* ====== トップ用の絵本カード ====== */
+.hero-card {
+    background: rgba(255,255,255,0.92);
+    border-radius: 26px;
+    padding: 28px 30px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+    max-width: 900px;
+    margin: 20px 0 10px 0;
+}
+
+.hero-title {
+    font-size: 2.1rem;
+    font-weight: 800;
+    color: #0B3D2E;
+    margin-bottom: 6px;
+}
+
+.hero-sub {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #D50000;
+    margin-bottom: 14px;
+}
+
+.hero-list {
+    padding-left: 1.2rem;
+    margin: 0 0 12px 0;
+    color: #0B3D2E;
+    font-size: 1.05rem;
+    line-height: 1.6;
+}
+
+.hero-foot {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #0B3D2E;
+    margin-top: 8px;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ---- CSSでざっくりフレーム寄せ（見た目調整）----
 # === UI変更点: 左ポイント枠/右チャット枠の雰囲気を近づける ===py -m streamlit run app.py
@@ -76,6 +230,24 @@ header[data-testid="stHeader"] {
     white-space: nowrap;
 }
 
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+/* 「ログイン」「新規登録」ボタンデザイン */
+/* ====== ボタンをクリスマス風に統一 ====== */
+button[kind="primary"] {
+    background: #BA8C6A !important;  /* ←ここを変更 */
+    color: white !important;
+    border-radius: 999px !important;
+    padding: 0.6rem 1.2rem !important;
+    border: none !important;
+    box-shadow: 0 6px 14px rgba(0,0,0,0.18) !important;
+}
+button[kind="primary"]:hover {
+    background: #A17656 !important; /* ←hoverも合わせる */
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -196,19 +368,11 @@ def signup_dialog():
 def render_lp():
     col1, col2, col3 = st.columns([4, 1, 1])
     with col2:
-        if st.button("ログイン"):
+        if st.button("ログイン", type="primary"):
             login_dialog()
     with col3:
-        if st.button("新規登録"):
+        if st.button("新規登録", type="primary"):
             signup_dialog()
-
-    st.header("いいこログ　～サンタさんからプレゼント～　へようこそ！")
-    st.subheader("サンタさんとおはなしして、いいこポイントをためよう！")
-    st.write("がんばったことや おてつだいしたことを つたえると、ポイントがふえるよ")
-    st.write("サンタさんにこっそりほしいものをおしえてみよう")
-    st.write("いいこはプレゼントがもらえるかもしれないよ")
-    st.write("じゅんびはいい？")
-    st.write("さっそくおはなししてみよう！")
 
 # ==========================================
 # 5. チャット / ポイント機能
