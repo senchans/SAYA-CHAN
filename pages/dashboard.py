@@ -7,13 +7,38 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+st.set_page_config(
+    page_title="いいこログ", page_icon="🎁", layout="wide",
+    initial_sidebar_state="collapsed"  # ←ここでデフォルトを閉じる
+)
+
+# 壁紙設定（後で変えたい）
+bg_url = "https://ibqjfzinmlhvoxcfnvrx.supabase.co/storage/v1/object/sign/imgfiles/background_snowdark.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZDk1NzYwNC00ODQyLTRhNjItOTYwMi04ZGUyOTY3ZjcwN2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbWdmaWxlcy9iYWNrZ3JvdW5kX3Nub3dkYXJrLnBuZyIsImlhdCI6MTc2NTI4Njc1NywiZXhwIjo0OTE4ODg2NzU3fQ.cuyBjUpPhoTZrc34VXlaas0U7pHDOG0tz0mamIddIaw"
+
+st.markdown(
+    f"""
+    <style>
+    /* アプリ全体の背景 */
+    .stApp {{
+        background-image: url("{bg_url}");
+        background-repeat: repeat;
+        background-size: 160px auto;  /* 好きな細かさに調整 */
+        background-position: center;
+        background-attachment: fixed;   /* スクロールしても背景固定 */
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
 # ---- CSSでざっくりフレーム寄せ（見た目調整）----
 # === UI変更点: 左ポイント枠/右チャット枠の雰囲気を近づける ===
 st.markdown("""
 <style>
 /* ページ全体の左右余白を減らす */
 .main .block-container {
-    padding-top: 1.2rem;
+    padding-top: 0.5em;
     padding-bottom: 1.5rem;
     padding-left: 2rem;
     padding-right: 2rem;
@@ -44,7 +69,68 @@ header[data-testid="stHeader"] {
 p {
     margin: 0.3em 0;  
 }         
-            
+
+                 
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+/* ====== トップ用の絵本カード ====== */
+.hero-card {
+    background: rgba(255,255,255,0.92);
+    border-radius: 26px;
+    padding: 28px 30px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+    max-width: 900px;
+    margin: 20px 0 10px 0;
+}
+
+.hero-title {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: #0B3D2E;
+    margin-bottom: 6px;
+}
+
+.hero-sub {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #D50000;
+    margin-bottom: 14px;
+}
+
+.hero-list {
+    padding-left: 1.2rem;
+    margin: 0 0 12px 0;
+    color: #0B3D2E;
+    font-size: 1.05rem;
+    line-height: 1.6;
+}
+
+.hero-foot {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #0B3D2E;
+    margin-top: 8px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+/* ====== ボタンをクリスマス風に統一 ====== */
+button[kind="primary"] {
+    background: #BA8C6A !important;  /* ←ここを変更 */
+    color: white !important;
+    border-radius: 999px !important;
+    padding: 0.6rem 1.2rem !important;
+    border: none !important;
+    box-shadow: 0 6px 14px rgba(0,0,0,0.18) !important;
+}
+button[kind="primary"]:hover {
+    background: #A17656 !important; /* ←hoverも合わせる */
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -85,6 +171,16 @@ def fetch_wishlist_for_child(child_id):
     res = (
         supabase.table("wishlist") 
         .select("item_name, created_at") 
+        .eq("child_id", child_id) 
+        .order("created_at", desc=False) 
+        .execute()
+    )
+    return res.data or []
+
+def fetch_pointledger_for_child(child_id):
+    res = (
+        supabase.table("pointledger") 
+        .select("task_name, point,created_at ") 
         .eq("child_id", child_id) 
         .order("created_at", desc=False) 
         .execute()
@@ -149,67 +245,94 @@ def wishlist_dialog():
         st.success("ほしいものリストに追加しました。")
         st.rerun()
 
-#　-- タイトル --
 
-st.subheader(f"ようこそ、{user['name']} さん！")
+#　-- タイトル/ログアウトボタン  --
+with st.container():
+    col1, col2 = st.columns([5, 1])
+    with col1:
+        st.header(f"🎄ようこそ、{user['name']} さん！")
+    with col2:
+        if st.button("ログアウト", type="primary"):
+            if "auth_user" in st.session_state:
+                del st.session_state["auth_user"]
+            st.session_state.clear()
+            st.switch_page("app.py")
 
-#　--サイドバー--
+        # -- ほしいものリスト呼び出し --
+        if st.session_state.selected_child:
+            st.session_state.wishlist_items = fetch_wishlist_for_child(st.session_state.selected_child['child_id'])
+        else:
+            st.session_state.wishlist_items = []
 
-st.sidebar.header("お子さんの選択")
-
+        # -- ほしいものリスト呼び出し --
+        if st.session_state.selected_child:
+            st.session_state.pointledger_points = fetch_pointledger_for_child(st.session_state.selected_child['child_id'])
+        else:
+            st.session_state.pointledger_points = []
+            
 # プルダウン
 children = st.session_state.children_list
 child_map = {child["name"]: child for child in st.session_state.children_list}
 child_names = list(child_map.keys())
 
-selected_child = st.sidebar.selectbox(
-    "お子さんを選択してください",
-    child_names if child_names else ["登録されていません"]
-)
-if st.sidebar.button("お子さんを登録する"):
-    registration_dialog()
-    st.session_state.children_list = load_children()
+with st.container():
+    col1, col2 = st.columns([7, 2])
 
-if child_names:
-    selected_child_name = selected_child
-else:
-    selected_child_name = None
+    with col1:
+        selected_child = st.selectbox(
+            "どのお子さんのプロフィールを見ますか？",
+            child_names if child_names else ["登録されていません"]
+        )
+    with col2:
+        if st.button("お子さんを登録する", type="primary"):
+            registration_dialog()
+            st.session_state.children_list = load_children()
 
-if selected_child in child_map:
-    st.session_state.selected_child = child_map[selected_child]
-else:
-    st.session_state.selected_child = None
+        if child_names:
+            selected_child_name = selected_child
+        else:
+            selected_child_name = None
 
-if selected_child in child_map:
-    selected_child = child_map[selected_child]
-    gender = selected_child["gender"]
-    birth_date_str = selected_child["birth_date"]
-    child_id = selected_child["child_id"]
-    birth_date = datetime.strptime(birth_date_str, "%Y-%m-%d").date()
+        if selected_child in child_map:
+            st.session_state.selected_child = child_map[selected_child]
+        else:
+            st.session_state.selected_child = None
 
-    today = date.today()
-    age = today.year - birth_date.year - (
-        (today.month, today.day) < (birth_date.month, birth_date.day)
-    )
+        if selected_child in child_map:
+            selected_child = child_map[selected_child]
+            gender = selected_child["gender"]
+            birth_date_str = selected_child["birth_date"]
+            child_id = selected_child["child_id"]
+            birth_date = datetime.strptime(birth_date_str, "%Y-%m-%d").date()
 
-# -- ほしいものリスト呼び出し --
-if st.session_state.selected_child:
-    st.session_state.wishlist_items = fetch_wishlist_for_child(st.session_state.selected_child['child_id'])
-else:
-    st.session_state.wishlist_items = []
+            today = date.today()
+            age = today.year - birth_date.year - (
+                (today.month, today.day) < (birth_date.month, birth_date.day)
+            )
+
+st.divider()
 
 # -- ダッシュボード --
 with st.container():
-    col1, col2 = st.columns([2, 1]) 
-    with col1: #プロフィール
-        st.write(f"{selected_child['name']}プロフィール")
-        st.write(f"性別：{gender}")
-        st.write(f"生年月日：{birth_date}")
-        st.write(f"年齢：{age}歳")
-    with col2: #チャット画面遷移ボタン
-        if st.button("サンタさんとチャットする"):
+    col1, col2 = st.columns([3, 1])
+
+    with col1:  # プロフィール
+        st.markdown(f"""
+        <div class="hero-card">
+        <div class="hero-title">{selected_child['name']}プロフィール</div>
+        <ul class="hero-list">
+            <li>性別：{gender}</li>
+            <li>生年月日：{birth_date}</li>
+            <li>年齢：{age}歳</li>
+        </ul>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:  # チャット画面遷移ボタン
+        if st.button("サンタさんとチャットする", type="primary"):
             st.switch_page("app.py")
 
+        
 st.divider()
 
 # -- ほしいものリスト表示 --
@@ -225,11 +348,25 @@ with st.container():
         st.dataframe(df, hide_index=True)
     else:
         st.info("ほしいものリストに追加されたアイテムはまだありません。")
-    if st.button("ほしいものを追加する"):
+    if st.button("ほしいものを追加する", type="primary"):
         wishlist_dialog()
 
 st.divider()
 
-# -- いいこポイント表示 --
+# -- よいこポイント表示 --
 with st.container():
-    st.write("いいこポイント")
+    st.write("よいこポイント")
+    if st.session_state.pointledger_points:
+        df = pd.DataFrame(st.session_state.pointledger_points)
+        df = df.rename(columns={
+            "task_name": "おてつだい",
+            "created_at": "追加日時",
+            "point": "ポイント"
+        })
+        df["追加日時"] = pd.to_datetime(df["追加日時"]).dt.strftime("%Y-%m-%d %H:%M")
+        st.dataframe(df, hide_index=True)
+
+        total_points = df["ポイント"].sum()
+        st.write(f"合計ポイント： {total_points} ポイント")
+    else:
+        st.info("よいこポイントはまだ貯まっていません。")
