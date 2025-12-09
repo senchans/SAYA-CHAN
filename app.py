@@ -4,6 +4,21 @@ from openai import OpenAI
 from supabase import create_client, Client  # Supabase接続
 import uuid
 from datetime import datetime
+import random
+import re
+
+#=====↓追加===========
+def add_wish(child_id: int, item_name: str, point: int = 0):
+    data = {
+        "child_id": child_id,
+        "item_name": item_name,
+        "point": point,
+        "is_deleted": 0,
+        "created_at": datetime.utcnow().isoformat()
+    }
+    response = supabase.table("wishlist").insert(data).execute()
+    return response
+#=====↑追加===========
 
 # ==========================================
 # 0. ページ設定
@@ -426,6 +441,7 @@ def fetch_children_for_user(user_id):
 SANTA_PROMPT = """
 あなたは子供が大好きな、優しくて温かいサンタクロースです。
 子供とお話して、いいことをしたらたくさん褒め、嫌なことや悪いことをしたら優しく諭してあげます。
+4〜6ターン目くらいで「さて、もうすぐクリスマスじゃな。クリスマスプレゼントはなにがほしいのかい？」とやさしく聞いてください。
 次のルールを必ず守って、ぶれないサンタクロースとしてふるまってください。
 
 【基本キャラ】
@@ -495,6 +511,19 @@ ONI_PROMPT = """
 - 大人向けの説教、長すぎる説明、現実的すぎる話はしない。
 - 子どもの気持ちを無視して一方的に怒鳴り続けない。
 """
+
+#========↓追加============
+def add_wish(child_id: int, item_name: str, point: int = 0):
+    data = {
+        "child_id": child_id,
+        "item_name": item_name,
+        "point": point,
+        "is_deleted": 0,
+        "created_at": datetime.utcnow().isoformat()
+    }
+    response = supabase.table("wishlist").insert(data).execute()
+    return response
+#=========↑追加===========
 
 def render_chat():
     # ---- サイドバー：モード切替 ----
@@ -593,6 +622,30 @@ def render_chat():
             st.markdown(user_input)
         st.session_state["messages"].append({"role": "user", "content": user_input})
 
+        # 正規表現で「〇〇ほしい」「〇〇がいい」「〇〇お願いします」などを抽出
+        pattern = r"(.+?)(ほしい|がほしい|がいいな|がいい|おねがい|をおねがい|おねがいします|をおねがいします|ください|をください|かな)"
+        match = re.search(pattern, user_input)
+
+        if match:
+            item = match.group(1).strip()
+        else:
+        # マッチしなかった場合 → 入力全体を item として扱う
+            item = user_input.strip()
+        #保存処理
+        if item:
+            result = add_wish(
+                child_id=st.session_state["child_id"],
+                item_name=item,
+                point=0
+            )
+            st.success(f"🎁 {item} をサンタさんへのおねがいとして保存したよ！")
+
+            # 保存結果を確認
+            st.write("保存レスポンス:", result)
+            st.write("保存データ:", result.data)
+            st.write("エラー:", result.error)
+
+
     # 加点処理
     keywords = fetch_active_keywords()
     add_points, matched_rows = calc_points(user_input, keywords)
@@ -634,6 +687,53 @@ def render_chat():
 
     except Exception as e:
         st.error(f"エラーが発生しました: {e}")
+
+    #=====↓追加==========
+    # ---- おねがいリスト管理 ----
+    if "pending_item" not in st.session_state:
+        st.session_state["pending_item"] = None
+    if "chat_count" not in st.session_state:
+        st.session_state["chat_count"] = 0
+
+    def santa_question():
+        questions = [
+            "そういえば、クリスマスにサンタにおねがいしたいものはあるかの？",
+            "ところで、クリスマスプレゼントはなにがほしいんじゃ？",
+            "サンタにたのんでみたいプレゼントはなんだい？"
+        ]
+        return random.choice(questions)
+
+    # ---- ラリー数管理 ----
+    if "turn_count" not in st.session_state:
+        st.session_state["turn_count"] = 0
+    if "pending_item" not in st.session_state:
+        st.session_state["pending_item"] = None
+
+    if user_input:
+        # AI返答はそのまま
+        # 「ほしい」を含む場合 → おねがい候補として抽出
+        if "ほしい" in user_input or "欲しい" in user_input:
+            item = user_input.replace("がほしい", "").replace("ほしい", "").replace("欲しい", "").strip()
+            st.session_state["pending_item"] = item
+
+    # 肯定返答なら Supabase に保存
+    elif user_input in ["うん", "はい", "そう！", "いいよ", "うん！"]:
+        if st.session_state["pending_item"]:
+            add_wish(
+                child_id=st.session_state["child_id"],
+                item_name=st.session_state["pending_item"],
+                point=0
+            )
+            st.session_state["pending_item"] = None
+
+
+
+    # ---- Supabaseからおねがい一覧を取得して表示 ----
+    response = supabase.table("wishlist").select("*").eq("child_id", st.session_state["child_id"]).execute()
+    wishes = response.data
+
+
+    #=========↑追加=============
 
 #チャット終了ダイアログ
 if "show_end_dialog" not in st.session_state:
