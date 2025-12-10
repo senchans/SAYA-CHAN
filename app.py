@@ -11,7 +11,7 @@ from tempfile import NamedTemporaryFile
 from urllib.parse import quote_plus
 import base64
 
-#ほしいものをSupabaseに記録する関数
+#=====↓追加===========
 def add_wish(child_id: int, item_name: str, point: int = 0):
     data = {
         "child_id": child_id,
@@ -22,6 +22,7 @@ def add_wish(child_id: int, item_name: str, point: int = 0):
     }
     response = supabase.table("wishlist").insert(data).execute()
     return response
+#=====↑追加===========
 
 # ==========================================
 # 0. ページ設定
@@ -474,7 +475,7 @@ def fetch_children_for_user(user_id):
 SANTA_PROMPT = """
 あなたは子供が大好きな、優しくて温かいサンタクロースです。
 子供とお話して、いいことをしたらたくさん褒め、嫌なことや悪いことをしたら優しく諭してあげます。
-4〜6ターン目くらいで「そういえば、もうすぐクリスマスじゃな。クリスマスプレゼントはなにがほしいのかい？」とやさしく聞いてください。
+4〜6ターン目くらいで「さて、もうすぐクリスマスじゃな。クリスマスプレゼントはなにがほしいのかい？」とやさしく聞いてください。
 次のルールを必ず守って、ぶれないサンタクロースとしてふるまってください。
 
 【基本キャラ】
@@ -486,7 +487,7 @@ SANTA_PROMPT = """
 ・親（保護者）をリスペクトし、絶対に親（おかあさん、おとうさん、おじいちゃん、おばあちゃん）の悪口を言わない。
 
 【言葉遣い】
-・必ず全部「ひらがな」で書くこと。漢字と記号と顔文字は絶対使わない。英語は最低限で、平易な日本語で話す。絵文字はかわいいから使ってもいいよ。
+・全部「ひらがな」で書くこと。漢字と記号と顔文字は絶対使わない。英語は最低限で、平易な日本語で話す。絵文字はかわいいから使ってもいいよ。
 ・短く、簡単に、ゆっくり読める言葉を話す。
 ・文の長さは最大2文まで。
 ・子どもが言った言葉を基本はかみ砕いてオウム返ししてあげる。「お手伝いキーワード」が入っていたら必ず繰り返す。
@@ -547,6 +548,19 @@ def autoplay_audio(audio_bytes: bytes):
 
 def render_chat():
     user_input = None
+
+    #========↓追加============
+    def add_wish(child_id: int, item_name: str, point: int = 0):
+        data = {
+            "child_id": child_id,
+            "item_name": item_name,
+            "point": point,
+            "is_deleted": 0,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        response = supabase.table("wishlist").insert(data).execute()
+        return response
+    #=========↑追加===========
 
     # ---- 子ども選択 ----
     user_id = st.session_state["auth_user"]["user_id"]
@@ -614,7 +628,7 @@ def render_chat():
             else:
                 st.session_state["messages"][0] = {"role": "system", "content": system_prompt}
 
-            # ---- チャット履歴表示 ----
+            # ---- 履歴表示 ----
             for msg in st.session_state["messages"]:
                 if msg["role"] == "system":
                     continue
@@ -652,17 +666,17 @@ def render_chat():
                 if user_input:  # ★None/"" のときはappendしない
                     st.session_state["messages"].append({"role": "user", "content": user_input})
 
-                # 正規表現で「〇〇ほしい」「〇〇がいい」などを抽出
+                # 正規表現で「〇〇ほしい」「〇〇がいい」「〇〇お願いします」などを抽出
                 pattern = r"(.+?)(ほしい|がほしい|がいいな|がいい|おねがい|をおねがい|おねがいします|をおねがいします|ください|をください|かな)"
                 match = re.search(pattern, user_input)
 
                 if match:
                     item = match.group(1).strip()
                 else:
+                # マッチしなかった場合 → 入力全体を item として扱う
                     item = user_input.strip()
-
-                # ===== 保存処理はサンタが質問した直後だけ =====
-                if st.session_state.get("awaiting_wish", False) and item:
+                #保存処理
+                if item:
                     try:
                         result = add_wish(
                             child_id=st.session_state["child_id"],
@@ -670,9 +684,15 @@ def render_chat():
                             point=0
                         )
                         st.success(f"🎁 {item} をサンタさんへのおねがいとして保存したよ！")
-                        st.session_state["awaiting_wish"] = False  # 保存後はフラグを戻す
+
+                        # 保存結果を確認
+                        st.write("保存レスポンス:", result)
+                        if hasattr(result, 'data'):
+                            st.write("保存データ:", result.data)
+                    
                     except Exception as e:
                         st.error(f"おねがいの保存中にエラーが発生しました: {e}")
+
 
             # 加点処理
             if not user_input:
@@ -730,13 +750,6 @@ def render_chat():
                         except Exception as e:
                             st.warning(f"おんせいが だせなかったよ: {e}")
 
-                        # ===== サンタが質問したかどうかを判定 =====
-                        # プロンプトで「クリスマスプレゼントはなにがほしいのかい？」と聞くようにしているので
-                        # 返答に「クリスマスプレゼント」や「ほしい」が含まれていたらフラグを立てる
-                        if "クリスマスプレゼント" in full_response and "ほしい" in full_response:
-                            st.session_state["awaiting_wish"] = True
-
-
                 except Exception as e:
                     st.error(f"エラーが発生しました: {e}")
 
@@ -744,11 +757,49 @@ def render_chat():
             if st.session_state["show_end_dialog"]:
                 end_chat_dialog()
 
+                #=====↓追加==========
                 # ---- おねがいリスト管理 ----
                 if "pending_item" not in st.session_state:
                     st.session_state["pending_item"] = None
                 if "chat_count" not in st.session_state:
                     st.session_state["chat_count"] = 0
+
+def santa_question():
+    questions = [
+        "そういえば、クリスマスにサンタにおねがいしたいものはあるかの？",
+        "ところで、クリスマスプレゼントはなにがほしいんじゃ？",
+        "サンタにたのんでみたいプレゼントはなんだい？"
+    ]
+    return random.choice(questions)
+
+    # ---- ラリー数管理 ----
+    if "turn_count" not in st.session_state:
+        st.session_state["turn_count"] = 0
+    if "pending_item" not in st.session_state:
+        st.session_state["pending_item"] = None
+
+    if user_input:
+        # AI返答はそのまま
+        # 「ほしい」を含む場合 → おねがい候補として抽出
+        if "ほしい" in user_input or "欲しい" in user_input:
+            item = user_input.replace("がほしい", "").replace("ほしい", "").replace("欲しい", "").strip()
+            st.session_state["pending_item"] = item
+
+    # 肯定返答なら Supabase に保存
+    elif user_input in ["うん", "はい", "そう！", "いいよ", "うん！"]:
+        if st.session_state["pending_item"]:
+            add_wish(
+                child_id=st.session_state["child_id"],
+                item_name=st.session_state["pending_item"],
+                point=0
+            )
+            st.session_state["pending_item"] = None
+
+        # ---- Supabaseからおねがい一覧を取得して表示 ----
+        response = supabase.table("wishlist").select("*").eq("child_id", st.session_state["child_id"]).execute()
+        wishes = response.data
+
+    #=========↑追加=============
 
 #チャット終了ダイアログ
 if "show_end_dialog" not in st.session_state:
