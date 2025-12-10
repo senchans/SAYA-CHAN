@@ -106,8 +106,8 @@ div[data-testid="stChatMessage"] {
     background: rgba(255,255,255,0.92);
 }
 /* サンタ側だけ少し色味を変える*/
-div[data-testid="stChatMessage"]:has(img[alt="assistant"]) {
-    background: rgba(255,245,245,0.98);
+div[data-testid="stChatMessage"][data-testid="chatMessage-assistant"] {
+    background: rgba(255,245,245,0.98) !important;
 }
 
 /* ====== タイトル装飾の余白 ====== */
@@ -372,6 +372,17 @@ def render_lp():
     }
     </style>
     """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <style>
+    /* LPのボタン列を前面に出す */
+    div[data-testid="column"] button {
+        position: relative;
+        z-index: 5;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     col1, col2, col3 = st.columns([2, 2, 15])
     with col2:
         if st.button("ログイン", type="primary"):
@@ -379,6 +390,30 @@ def render_lp():
     with col3:
         if st.button("新規登録", type="primary"):
             signup_dialog()
+
+    # ★ ボタンの下に子供のイラスト追加
+    st.markdown(
+        """
+        <style>
+        .lp-illust {
+            margin-top: -5px;
+            margin-left: 30px;
+            pointer-events: none;
+        }
+        .lp-illust img {
+            width: 520px;
+            max-width: 100%;
+            pointer-events: none;
+        }
+        </style>
+
+        <div class="lp-illust">
+            <img src="https://ibqjfzinmlhvoxcfnvrx.supabase.co/storage/v1/object/sign/imgfiles/children_resize.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZDk1NzYwNC00ODQyLTRhNjItOTYwMi04ZGUyOTY3ZjcwN2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbWdmaWxlcy9jaGlsZHJlbl9yZXNpemUucG5nIiwiaWF0IjoxNzY1MzU5MTQ3LCJleHAiOjQ4ODc0MjMxNDd9.L_Z328gkyeSQ5MA9WlrUPwFQWF2MqCNh-bG1Jx8K8hk"
+                 alt="children illust">
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 # ==========================================
 # 5. チャット / ポイント機能
@@ -452,7 +487,7 @@ SANTA_PROMPT = """
 # ===== サンタ固定設定 =====
 header_title = "🎅 サンタさんとおはなししよう！"
 system_prompt = SANTA_PROMPT
-ai_avatar = "🎅"
+ai_avatar = "https://ibqjfzinmlhvoxcfnvrx.supabase.co/storage/v1/object/sign/imgfiles/santa_icon_resize.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZDk1NzYwNC00ODQyLTRhNjItOTYwMi04ZGUyOTY3ZjcwN2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbWdmaWxlcy9zYW50YV9pY29uX3Jlc2l6ZS5wbmciLCJpYXQiOjE3NjUzNTg3MTIsImV4cCI6NDg4NzQyMjcxMn0.zxPY_pHoLm87BpMlqNy-mb0uajI1Mv-EFq0nayOJ-Ag"
 
 # ---------------------------
 # 音声 → テキスト（STT）
@@ -486,7 +521,7 @@ def transcribe_audio_to_text(audio_bytes) -> str:
 def text_to_speech(text: str) -> bytes:
     speech = client.audio.speech.create(
         model="gpt-4o-mini-tts",
-        voice="Verse",
+        voice="verse",
         input=text
     )
     return speech.content
