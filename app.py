@@ -31,7 +31,10 @@ def add_wish(child_id: int, item_name: str, point: int = 0):
 from streamlit_extras.let_it_rain import rain
 
 # ページの設定（タイトルやアイコン）
-st.set_page_config(page_title="いいこログ", page_icon="🎁", layout="wide")  # wideで横長UI
+st.set_page_config(
+    page_title="いいこログ", page_icon="🎁", layout="wide", # wideで横長UI
+    initial_sidebar_state="collapsed"  # デフォルトでサイドバーを閉じる
+) 
 
 # 雪降らし
 rain(
@@ -419,6 +422,9 @@ def render_lp():
 # 5. チャット / ポイント機能
 # ==========================================
 
+#ダッシュボードページで選択した子供情報の反映
+selected_child = st.session_state.get("selected_child")
+
 # Supabaseから有効なキーワード取得
 # DB名称変更を修正
 def fetch_active_keywords():
@@ -562,9 +568,11 @@ def render_chat():
         st.stop()
 
     child_options = {c["name"]: c for c in children} #＜確認＞childmaster内の子どもの名前はchild_nameにしてはどうか？
+    sorted_names = sorted(child_options.keys())
     selected_child_name = st.sidebar.selectbox(
         "だれがおはなしする？（こどもをえらんでね）",
-        list(child_options.keys())
+        sorted_names,
+        index=st.session_state.get("selected_child_index", 0)
     )
     selected_child = child_options[selected_child_name]
 
@@ -577,19 +585,6 @@ def render_chat():
     if "total_points" not in st.session_state:
         st.session_state["total_points"] = selected_child.get("total_points") or 0
 
-    # ---- サイドバー：ポイント表示 ----
-    with st.sidebar:
-        st.markdown("### よいこポイント")
-        points_box1 = st.empty()
-        points_box1.metric("いまのポイント", st.session_state["total_points"])
-    #   もくひょうポイント
-        goal_points =  selected_child.get("goal_points")
-    #    Noneのときはデフォルト値を50に設定
-        if goal_points is None:
-            goal_points = 50  # デフォルト目標ポイント
-        points_box2 = st.empty()
-        points_box2.metric("もくひょうポイント", goal_points)
-
     # ---- 画面レイアウト ----   
     left_col, right_col = st.columns([1, 4], gap="large")
     with right_col:
@@ -600,153 +595,171 @@ def render_chat():
             if st.button("チャットを終わる", type="primary"):
                 st.session_state["show_end_dialog"] = True
 
-        st.image(
+
+
+    # ---- チャットを左、ポイントを右に表示 ----
+    with st.container():
+        col_chat, col_point = st.columns([4,1])
+        with col_point:
+            st.image(
             "https://eiyoushi-hutaba.com/wp-content/uploads/2022/11/%E3%82%B5%E3%83%B3%E3%82%BF%E3%81%95%E3%82%93-940x940.png",
             width=200,
             caption="サンタさん"
-        )
-
-    # ---- 会話履歴初期化 ----
-    if "messages" not in st.session_state or len(st.session_state["messages"]) == 0:
-        st.session_state["messages"] = [{"role": "system", "content": system_prompt}]
-    else:
-        st.session_state["messages"][0] = {"role": "system", "content": system_prompt}
-
-    # ---- 履歴表示 ----
-    for msg in st.session_state["messages"]:
-        if msg["role"] == "system":
-            continue
-        if not msg.get("content"):
-            continue
-        icon = ai_avatar if msg["role"] == "assistant" else "🧒"
-        with st.chat_message(msg["role"], avatar=icon):
-            st.markdown(msg["content"])
-
-    # ===== 入力方法の選択=====
-    use_voice = st.toggle("🎙️ こえで しゃべる", value=False)
-
-    user_input = None
-
-    if use_voice:
-        audio_bytes = audio_recorder(text="🎤 おはなししてね", pause_threshold=3)
-        if audio_bytes is None or len(audio_bytes) < 1000:
-            st.info("もういちど、こえを いれてみてね")
-            return
-        with st.spinner("こえを もじに しているよ…"):
-            user_input = transcribe_audio_to_text(audio_bytes)
-        if not user_input:
-            st.info("うまく ききとれなかったよ。もういちど しゃべってね")
-            return
-            # 子どもが話した内容を画面にも見せたい場合
-        st.chat_message("user", avatar="🧒").write(user_input)
-        st.session_state["messages"].append({"role": "user", "content": user_input})
-    else:
-        user_input = st.chat_input("ここに いれてね")
-        # ★ 何も入力されてない（None / ""）時はここで終了
-        if not user_input:
-            return
-        with st.chat_message("user", avatar="🧒"):
-            st.markdown(user_input)
-        if user_input:  # ★None/"" のときはappendしない
-            st.session_state["messages"].append({"role": "user", "content": user_input})
-
-        # 正規表現で「〇〇ほしい」「〇〇がいい」「〇〇お願いします」などを抽出
-        pattern = r"(.+?)(ほしい|がほしい|がいいな|がいい|おねがい|をおねがい|おねがいします|をおねがいします|ください|をください|かな)"
-        match = re.search(pattern, user_input)
-
-        if match:
-            item = match.group(1).strip()
-        else:
-        # マッチしなかった場合 → 入力全体を item として扱う
-            item = user_input.strip()
-        #保存処理
-        if item:
-            try:
-                result = add_wish(
-                    child_id=st.session_state["child_id"],
-                    item_name=item,
-                    point=0
-                )
-                st.success(f"🎁 {item} をサンタさんへのおねがいとして保存したよ！")
-
-                # 保存結果を確認
-                st.write("保存レスポンス:", result)
-                if hasattr(result, 'data'):
-                    st.write("保存データ:", result.data)
-            
-            except Exception as e:
-                st.error(f"おねがいの保存中にエラーが発生しました: {e}")
-
-
-    # 加点処理
-    if not user_input:
-        return
-    keywords = fetch_active_keywords()
-    add_points, matched_rows = calc_points(user_input, keywords)
-
-    if add_points > 0:
-        st.session_state["total_points"] += add_points
-        points_box1.metric("いまのポイント", st.session_state["total_points"])
-
-        insert_points_log(st.session_state["child_id"], matched_rows, user_input)
-        upsert_child_total(st.session_state["child_id"], st.session_state["total_points"])
-
-        matched_words = [r["task_name"] for r in matched_rows]
-        st.success(f"すごい！「{'、'.join(matched_words)}」で {add_points} てん たまったよ！")
-
-        # 加点時に風船
-        st.balloons()
-
-    if st.session_state.get("show_end_dialog"):
-        pass #　ボタンが押された場合は以下の処理は実施しない
-
-    else:
-        # AI返答
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=st.session_state["messages"],
-                stream=True
             )
+            st.markdown("### よいこポイント")
+            points_box1 = st.empty()
+            points_box1.metric("いまのポイント", st.session_state["total_points"])
+        #   もくひょうポイント
+            goal_points =  selected_child.get("goal_points")
+        #    Noneのときはデフォルト値を50に設定
+            if goal_points is None:
+                goal_points = 50  # デフォルト目標ポイント
+            points_box2 = st.empty()
+            points_box2.metric("もくひょうポイント", goal_points)
 
-            with st.chat_message("assistant", avatar=ai_avatar):
-                message_placeholder = st.empty()
-                full_response = ""
 
-                for chunk in response:
-                    delta = chunk.choices[0].delta
-                    token = delta.content if delta and delta.content else ""
-                    full_response += token
-                    message_placeholder.markdown(full_response + "▌")
+        with col_chat:
+            # ---- 会話履歴初期化 ----
+            if "messages" not in st.session_state or len(st.session_state["messages"]) == 0:
+                st.session_state["messages"] = [{"role": "system", "content": system_prompt}]
+            else:
+                st.session_state["messages"][0] = {"role": "system", "content": system_prompt}
 
-                message_placeholder.markdown(full_response)
+            # ---- 履歴表示 ----
+            for msg in st.session_state["messages"]:
+                if msg["role"] == "system":
+                    continue
+                if not msg.get("content"):
+                    continue
+                icon = ai_avatar if msg["role"] == "assistant" else "🧒"
+                with st.chat_message(msg["role"], avatar=icon):
+                    st.markdown(msg["content"])
 
-            if full_response:
-                st.session_state["messages"].append(
-                    {"role": "assistant", "content": full_response}
-                )
+            # ===== 入力方法の選択=====
+            use_voice = st.toggle("🎙️ こえで しゃべる", value=False)
 
-                # ===== サンタの声を出す（TTS）=====
+            user_input = None
+
+            if use_voice:
+                audio_bytes = audio_recorder(text="🎤 おはなししてね", pause_threshold=3)
+                if audio_bytes is None or len(audio_bytes) < 1000:
+                    st.info("もういちど、こえを いれてみてね")
+                    return
+                with st.spinner("こえを もじに しているよ…"):
+                    user_input = transcribe_audio_to_text(audio_bytes)
+                if not user_input:
+                    st.info("うまく ききとれなかったよ。もういちど しゃべってね")
+                    return
+                    # 子どもが話した内容を画面にも見せたい場合
+                st.chat_message("user", avatar="🧒").write(user_input)
+                st.session_state["messages"].append({"role": "user", "content": user_input})
+            else:
+                user_input = st.chat_input("ここに いれてね")
+                # ★ 何も入力されてない（None / ""）時はここで終了
+                if not user_input:
+                    return
+                with st.chat_message("user", avatar="🧒"):
+                    st.markdown(user_input)
+                if user_input:  # ★None/"" のときはappendしない
+                    st.session_state["messages"].append({"role": "user", "content": user_input})
+
+                # 正規表現で「〇〇ほしい」「〇〇がいい」「〇〇お願いします」などを抽出
+                pattern = r"(.+?)(ほしい|がほしい|がいいな|がいい|おねがい|をおねがい|おねがいします|をおねがいします|ください|をください|かな)"
+                match = re.search(pattern, user_input)
+
+                if match:
+                    item = match.group(1).strip()
+                else:
+                # マッチしなかった場合 → 入力全体を item として扱う
+                    item = user_input.strip()
+                #保存処理
+                if item:
+                    try:
+                        result = add_wish(
+                            child_id=st.session_state["child_id"],
+                            item_name=item,
+                            point=0
+                        )
+                        st.success(f"🎁 {item} をサンタさんへのおねがいとして保存したよ！")
+
+                        # 保存結果を確認
+                        st.write("保存レスポンス:", result)
+                        if hasattr(result, 'data'):
+                            st.write("保存データ:", result.data)
+                    
+                    except Exception as e:
+                        st.error(f"おねがいの保存中にエラーが発生しました: {e}")
+
+
+            # 加点処理
+            if not user_input:
+                return
+            keywords = fetch_active_keywords()
+            add_points, matched_rows = calc_points(user_input, keywords)
+
+            if add_points > 0:
+                st.session_state["total_points"] += add_points
+                points_box1.metric("いまのポイント", st.session_state["total_points"])
+
+                insert_points_log(st.session_state["child_id"], matched_rows, user_input)
+                upsert_child_total(st.session_state["child_id"], st.session_state["total_points"])
+
+                matched_words = [r["task_name"] for r in matched_rows]
+                st.success(f"すごい！「{'、'.join(matched_words)}」で {add_points} てん たまったよ！")
+
+                # 加点時に風船
+                st.balloons()
+
+            if st.session_state.get("show_end_dialog"):
+                pass #　ボタンが押された場合は以下の処理は実施しない
+
+            else:
+                # AI返答
                 try:
-                    santa_voice = text_to_speech(full_response)
-                    autoplay_audio(santa_voice)
-                    st.audio(santa_voice, format="audio/mp3")
+                    response = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=st.session_state["messages"],
+                        stream=True
+                    )
+
+                    with st.chat_message("assistant", avatar=ai_avatar):
+                        message_placeholder = st.empty()
+                        full_response = ""
+
+                        for chunk in response:
+                            delta = chunk.choices[0].delta
+                            token = delta.content if delta and delta.content else ""
+                            full_response += token
+                            message_placeholder.markdown(full_response + "▌")
+
+                        message_placeholder.markdown(full_response)
+
+                    if full_response:
+                        st.session_state["messages"].append(
+                            {"role": "assistant", "content": full_response}
+                        )
+
+                        # ===== サンタの声を出す（TTS）=====
+                        try:
+                            santa_voice = text_to_speech(full_response)
+                            autoplay_audio(santa_voice)
+                            st.audio(santa_voice, format="audio/mp3")
+                        except Exception as e:
+                            st.warning(f"おんせいが だせなかったよ: {e}")
+
                 except Exception as e:
-                    st.warning(f"おんせいが だせなかったよ: {e}")
-
-        except Exception as e:
-            st.error(f"エラーが発生しました: {e}")
+                    st.error(f"エラーが発生しました: {e}")
 
 
-    if st.session_state["show_end_dialog"]:
-        end_chat_dialog()
+            if st.session_state["show_end_dialog"]:
+                end_chat_dialog()
 
-        #=====↓追加==========
-        # ---- おねがいリスト管理 ----
-        if "pending_item" not in st.session_state:
-            st.session_state["pending_item"] = None
-        if "chat_count" not in st.session_state:
-            st.session_state["chat_count"] = 0
+                #=====↓追加==========
+                # ---- おねがいリスト管理 ----
+                if "pending_item" not in st.session_state:
+                    st.session_state["pending_item"] = None
+                if "chat_count" not in st.session_state:
+                    st.session_state["chat_count"] = 0
 
 def santa_question():
     questions = [

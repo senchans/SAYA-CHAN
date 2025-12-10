@@ -196,6 +196,7 @@ if "registration_done" not in st.session_state:
 if "selected_child" not in st.session_state:
     st.session_state.selected_child = None
 
+
 child_names = [child["name"] for child in st.session_state.children_list]
 
 # -- ポップアップ定義 --
@@ -273,7 +274,15 @@ with st.container():
 # プルダウン
 children = st.session_state.children_list
 child_map = {child["name"]: child for child in st.session_state.children_list}
-child_names = list(child_map.keys())
+child_names = sorted([child["name"] for child in children])
+if st.session_state.selected_child:
+    child_names = [child["name"] for child in st.session_state.children_list]
+    if st.session_state.selected_child["name"] in child_names:
+        st.session_state.selected_child_index = child_names.index(st.session_state.selected_child["name"])
+    else:
+        st.session_state.selected_child_index = 0
+else:
+    st.session_state.selected_child_index = 0
 
 with st.container():
     col1, col2 = st.columns([7, 2])
