@@ -562,9 +562,11 @@ def render_chat():
     st.session_state["child_id"] = selected_child["child_id"]
     st.session_state["name"] = selected_child["name"] #<確認>childmaster内の子どもの名前はchild_nameにしてはどうか？
     st.session_state["user_id"]= selected_child["user_id"]
-    st.session_state["total_points"] = selected_child["total_points"]
-    if st.session_state["total_points"] not in st.session_state or st.session_state["total_points"] is None:
-        st.session_state["total_points"] = 0
+    #st.session_state["total_points"] = selected_child["total_points"]
+    #if st.session_state["total_points"] not in st.session_state or st.session_state["total_points"] is None:
+    #    st.session_state["total_points"] = 0
+    if "total_points" not in st.session_state:
+        st.session_state["total_points"] = selected_child.get("total_points") or 0
 
     # ---- サイドバー：ポイント表示 ----
     with st.sidebar:
@@ -633,17 +635,21 @@ def render_chat():
             item = user_input.strip()
         #保存処理
         if item:
-            result = add_wish(
-                child_id=st.session_state["child_id"],
-                item_name=item,
-                point=0
-            )
-            st.success(f"🎁 {item} をサンタさんへのおねがいとして保存したよ！")
+            try:
+                result = add_wish(
+                    child_id=st.session_state["child_id"],
+                    item_name=item,
+                    point=0
+                )
+                st.success(f"🎁 {item} をサンタさんへのおねがいとして保存したよ！")
 
-            # 保存結果を確認
-            st.write("保存レスポンス:", result)
-            st.write("保存データ:", result.data)
-            st.write("エラー:", result.error)
+                # 保存結果を確認
+                st.write("保存レスポンス:", result)
+                if hasattr(result, 'data'):
+                    st.write("保存データ:", result.data)
+            
+            except Exception as e:
+                st.error(f"おねがいの保存中にエラーが発生しました: {e}")
 
 
     # 加点処理
@@ -663,30 +669,34 @@ def render_chat():
         # 加点時に風船
         st.balloons()
 
+    if st.session_state.get("show_end_dialog"):
+        pass #　ボタンが押された場合は以下の処理は実施しない
+    else:
+
     # AI返答
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=st.session_state["messages"],
-            stream=True
-        )
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=st.session_state["messages"],
+                stream=True
+            )
 
-        with st.chat_message("assistant", avatar=ai_avatar):
-            message_placeholder = st.empty()
-            full_response = ""
+            with st.chat_message("assistant", avatar=ai_avatar):
+                message_placeholder = st.empty()
+                full_response = ""
 
-            for chunk in response:
-                delta = chunk.choices[0].delta
-                token = delta.content if delta and delta.content else ""
-                full_response += token
-                message_placeholder.markdown(full_response + "▌")
+                for chunk in response:
+                    delta = chunk.choices[0].delta
+                    token = delta.content if delta and delta.content else ""
+                    full_response += token
+                    message_placeholder.markdown(full_response + "▌")
 
-            message_placeholder.markdown(full_response)
+                message_placeholder.markdown(full_response)
 
-        st.session_state["messages"].append({"role": "assistant", "content": full_response})
+            st.session_state["messages"].append({"role": "assistant", "content": full_response})
 
-    except Exception as e:
-        st.error(f"エラーが発生しました: {e}")
+        except Exception as e:
+            st.error(f"エラーが発生しました: {e}")
 
     #=====↓追加==========
     # ---- おねがいリスト管理 ----
@@ -739,54 +749,55 @@ def render_chat():
 if "show_end_dialog" not in st.session_state:
     st.session_state["show_end_dialog"] = False
 
-if st.session_state["show_end_dialog"]:
-    # Streamlitのダイアログ（モーダル風）
-    @st.dialog("チャットを終わりますか？")
-    def end_chat_dialog():
-        st.write("ほごしゃのぱすわーどをいれてね。")
+# Streamlitのダイアログ（モーダル風）
+@st.dialog("チャットを終わりますか？")
+def end_chat_dialog():
+    st.write("ほごしゃのぱすわーどをいれてね。")
 
-        # ★ここでパスワード入力
-        pw = st.text_input("パスワード", type="password")
+    # ★ここでパスワード入力
+    pw = st.text_input("パスワード", type="password")
 
-        # 照合先のpasswordをSupabaseから取得するキーとしてuser_idを使う
-        user_id = st.session_state.get("user_id")
+    # 照合先のpasswordをSupabaseから取得するキーとしてuser_idを使う
+    user_id = st.session_state.get("user_id")
 
 
-        col_a, col_b = st.columns(2)
-        # キャンセル処理
-        with col_a:
-            if st.button("キャンセル"):
+    col_a, col_b = st.columns(2)
+    # キャンセル処理
+    with col_a:
+        if st.button("キャンセル", key="cancel_exit_dialog"):
+            st.session_state["show_end_dialog"] = False
+            st.rerun()
+
+    # チャット終了処理
+    with col_b:
+        if st.button("チャットを終わる", key="confirm_exit_chat"):
+
+            # Supabaseから保護者のパスワードを取得
+            res = (
+                supabase.table("usermaster")
+                .select("password")
+                .eq("user_id", user_id)
+                .execute()
+            )
+            # ★パスワードチェック
+            if not res.data:
+                st.error("ぱすわーどがちがうよ。")
+                return
+            
+            CORRECT_PASSWORD = res.data[0]["password"]
+
+            # パスワードが正しければチャット終了
+            if pw == CORRECT_PASSWORD:
                 st.session_state["show_end_dialog"] = False
-                st.rerun()
+                # チャット終了処理
+                st.session_state["messages"] = []
+                st.success("チャットをおわったよ。")
+                st.switch_page("pages/dashboard.py")
 
-        # チャット終了処理
-        with col_b:
-            if st.button("チャットを終わる"):
+            else:
+                st.error("ぱすわーどがちがうよ。")
 
-                # Supabaseから保護者のパスワードを取得
-                res = (
-                    supabase.table("usermaster")
-                    .select("password")
-                    .eq("user_id", user_id)
-                    .execute()
-                )
-                # ★パスワードチェック
-                if res.data is None:
-                    st.error("ぱすわーどがちがうよ。")
-                    return
-                
-                CORRECT_PASSWORD = res.data[0]["password"]
-
-                # パスワードが正しければチャット終了
-                if pw == CORRECT_PASSWORD:
-                    st.session_state["show_end_dialog"] = False
-                    # チャット終了処理
-                    st.session_state["messages"] = []
-                    st.success("チャットをおわったよ。")
-                    st.rerun()
-                else:
-                    st.error("ぱすわーどがちがうよ。")
-
+if st.session_state["show_end_dialog"]:
     end_chat_dialog()
 
     # ==========================================
