@@ -233,6 +233,9 @@ except (FileNotFoundError, KeyError):
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
 
+if api_key:
+    api_key = api_key.strip()
+
 if not api_key:
     api_key = st.sidebar.text_input("OpenAI API Key", type="password")
 
