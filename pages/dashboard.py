@@ -3,6 +3,7 @@ from supabase import create_client, Client
 import pandas as pd #app.py統合時には追加を忘れないように！
 import uuid
 from datetime import datetime, date
+from urllib.parse import quote_plus
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -349,18 +350,35 @@ with st.container():
     st.write("ほしいものリスト")
     if st.session_state.wishlist_items:
         df = pd.DataFrame(st.session_state.wishlist_items)
+
+        # 表示用の列名に変更
         df = df.rename(columns={
             "item_name": "商品名",
             "created_at": "追加日時"
         })
         df["追加日時"] = pd.to_datetime(df["追加日時"]).dt.strftime("%Y-%m-%d %H:%M")
-        st.dataframe(df, hide_index=True)
+
+        # Amazon検索URL列を追加
+        df["Amazonで検索"] = df["商品名"].apply(
+            lambda x: f"https://www.amazon.co.jp/s?k={quote_plus(str(x))}"
+        )
+
+        # クリック可能なリンク列として表示
+        st.dataframe(
+            df,
+            hide_index=True,
+            column_config={
+                "Amazonで検索": st.column_config.LinkColumn(
+                    label="Amazonで検索",
+                    display_text="Amazonでひらく"
+                )
+            }
+        )
     else:
         st.info("ほしいものリストに追加されたアイテムはまだありません。")
+
     if st.button("ほしいものを追加する", type="primary"):
         wishlist_dialog()
-
-st.divider()
 
 # -- よいこポイント表示 --
 with st.container():
