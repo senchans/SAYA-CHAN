@@ -3,3 +3,5 @@ openai
 supabase>=2.0.0
 python-dotenv
 streamlit-extras
+audio-recorder-streamlit
+openai>=1.0.0
