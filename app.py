@@ -32,7 +32,7 @@ st.set_page_config(page_title="いいこログ", page_icon="🎁", layout="wide"
 # 雪降らし
 rain(
     emoji="❄️",
-    font_size=10,            # 雪の大きさ
+    font_size=14,            # 雪の大きさ
     falling_speed=6.0,       # 落下速度（1.0-3.0目安）
     animation_length="infinite",  # ずっと降らせる
 )
@@ -106,19 +106,6 @@ div[data-testid="stChatMessage"]:has(img[alt="assistant"]) {
     background: rgba(255,245,245,0.98);
 }
 
-/* ====== ボタンをクリスマス風に統一 ====== */
-button[kind="primary"] {
-    background: #e53935 !important;
-    color: white !important;
-    border-radius: 999px !important;
-    padding: 0.6rem 1.2rem !important;
-    border: none !important;
-    box-shadow: 0 6px 14px rgba(0,0,0,0.18) !important;
-}
-button[kind="primary"]:hover {
-    background: #c62828 !important;
-}
-
 /* ====== タイトル装飾の余白 ====== */
 h1, h2, h3 {
     text-shadow: 0 2px 6px rgba(0,0,0,0.08);
@@ -142,7 +129,7 @@ h1, h2, h3 {
     margin-bottom: 0.6rem;
 }
 
-/* 段落の余白を詰める（今の“スカスカ”の原因） */
+/* 段落の余白を詰める*/
 p, li {
     margin-bottom: 0.35rem !important;
 }
@@ -154,66 +141,8 @@ div[data-testid="stMarkdownContainer"] {
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-<div class="hero-card">
-  <div class="hero-title">いいこログ  ～サンタさんからプレゼント～</div>
-  <div class="hero-sub">サンタさんとおはなしして、いいこポイントをためよう！</div>
-
-  <ul class="hero-list">
-    <li>がんばったことや おてつだいしたことを つたえると、ポイントがふえるよ。</li>
-    <li>サンタさんに こっそり ほしいものを おしえてみよう。</li>
-    <li>いいこは クリスマスに プレゼントが もらえるかもしれないよ。</li>
-  </ul>
-
-  <div class="hero-foot">じゅんびはいい？ さっそく はじめよう！</div>
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<style>
-/* ====== トップ用の絵本カード ====== */
-.hero-card {
-    background: rgba(255,255,255,0.92);
-    border-radius: 26px;
-    padding: 28px 30px;
-    box-shadow: 0 12px 30px rgba(0,0,0,0.18);
-    max-width: 900px;
-    margin: 20px 0 10px 0;
-}
-
-.hero-title {
-    font-size: 2.1rem;
-    font-weight: 800;
-    color: #0B3D2E;
-    margin-bottom: 6px;
-}
-
-.hero-sub {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #D50000;
-    margin-bottom: 14px;
-}
-
-.hero-list {
-    padding-left: 1.2rem;
-    margin: 0 0 12px 0;
-    color: #0B3D2E;
-    font-size: 1.05rem;
-    line-height: 1.6;
-}
-
-.hero-foot {
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: #0B3D2E;
-    margin-top: 8px;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ---- CSSでざっくりフレーム寄せ（見た目調整）----
-# === UI変更点: 左ポイント枠/右チャット枠の雰囲気を近づける ===py -m streamlit run app.py
+# === UI変更点: 左ポイント枠/右チャット枠の雰囲気を近づける ===
 st.markdown("""
 <style>
 /* ページ全体の左右余白を減らす */
@@ -250,10 +179,9 @@ header[data-testid="stHeader"] {
 
 st.markdown("""
 <style>
-/* 「ログイン」「新規登録」ボタンデザイン */
-/* ====== ボタンをクリスマス風に統一 ====== */
+/* ====== ボタンデザインをクリスマス風に統一 ====== */
 button[kind="primary"] {
-    background: #BA8C6A !important;  /* ←ここを変更 */
+    background: #BA8C6A !important;
     color: white !important;
     border-radius: 999px !important;
     padding: 0.6rem 1.2rem !important;
@@ -261,7 +189,7 @@ button[kind="primary"] {
     box-shadow: 0 6px 14px rgba(0,0,0,0.18) !important;
 }
 button[kind="primary"]:hover {
-    background: #A17656 !important; /* ←hoverも合わせる */
+    background: #A17656 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -381,7 +309,66 @@ def signup_dialog():
 # 4. LP（ログイン前トップ）
 # ==========================================
 def render_lp():
-    col1, col2, col3 = st.columns([4, 1, 1])
+    
+    #ヒーロー部分のカード（LPにだけ表示させる）
+    st.markdown("""
+    <div class="hero-card">
+    <div class="hero-title">いいこログ  ～サンタさんからプレゼント～</div>
+    <div class="hero-sub">サンタさんとおはなしして、いいこポイントをためよう！</div>
+
+    <ul class="hero-list">
+        <li>がんばったことや おてつだいしたことを つたえると、ポイントがふえるよ。</li>
+        <li>サンタさんに こっそり ほしいものを おしえてみよう。</li>
+        <li>いいこは クリスマスに プレゼントが もらえるかもしれないよ。</li>
+    </ul>
+
+    <div class="hero-foot">じゅんびはいい？ さっそく はじめよう！</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <style>
+    /* ====== トップ用の絵本カード ====== */
+    .hero-card {
+        background: rgba(255,255,255,0.92);
+        border-radius: 26px;
+        padding: 28px 30px;
+        box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+        max-width: 900px;
+        margin: 20px 0 10px 0;
+    }
+
+    .hero-title {
+        font-size: 2.1rem;
+        font-weight: 800;
+        color: #0B3D2E;
+        margin-bottom: 6px;
+    }
+
+    .hero-sub {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #D50000;
+        margin-bottom: 14px;
+    }
+
+    .hero-list {
+        padding-left: 1.2rem;
+        margin: 0 0 12px 0;
+        color: #0B3D2E;
+        font-size: 1.05rem;
+        line-height: 1.6;
+    }
+
+    .hero-foot {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #0B3D2E;
+        margin-top: 8px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1, 6])
     with col2:
         if st.button("ログイン", type="primary"):
             login_dialog()
@@ -434,7 +421,6 @@ def fetch_children_for_user(user_id):
         .execute()
     return res.data or []
 
-
 # ---------------------------
 # キャラプロンプト
 # ---------------------------
@@ -459,58 +445,10 @@ SANTA_PROMPT = """
 ・子どもが言った言葉を基本はかみ砕いてオウム返ししてあげる。「お手伝いキーワード」が入っていたら必ず繰り返す。
 """
 
-ONI_PROMPT = """
-あなたは、秋田の「なまはげ」をイメージしたしつけ役の鬼です。
-子どもを正しい方向に導くため、少し怖く、でも根は愛情深い存在としてふるまってください。
-以下のルールを必ず守り、キャラクターがぶれないように会話してください。
-
-【基本キャラクター】
-- 一人称は原則使わず、使うとしたら「おにさん」。
-- 声は大きく、どしんとした威圧感のある雰囲気。
-- ただし本当の目的は「子どもがいい子になることを応援する」こと。
-- 子どもを本気で傷つける意図はなく、怖さの演出として注意する役割。
-
-【話し方・語尾】
-- 子どもに返す文章は全部ひらがなで書くこと。漢字は絶対使わない。英語、記号は最低限。
-- 文は短く、1〜2文で区切る。
-- 語尾は「〜だぞ！」「〜するぞ！」「〜してみろ！」など、なまはげ風に強め。
-- ただし恐怖を煽りすぎたり、トラウマになる表現は禁止。
-
-【なまはげ口調の決め台詞（状況に応じて使う）】
-- 「わるいこはいねが〜！」
-- 「なまけものはいねが〜！」
-- 「はやくねねえこはいねが〜！」
-- 「うそつきはいねが〜！」
-- 「いうこときかないこは つれていくぞ〜！」
-
-【良いことをした時の反応】
-- まず少し怖め・豪快に褒める。
- 例：「ほう…やるじゃねえか。ちゃんとみてたぞ！」
-- そのあと少しだけ優しさを見せ、背中を押す。
- 例：「そのちょうしでつづけろよ。」
-
-【悪いことをした時の反応】
-- まずは怖めに注意してよい。
- 例：「それは だめだぞ！おこりにきたぞ！」
-- ただし必ず「どうしたらいいか」を“1つだけ”具体的に教える。
- 例：「たたくのは だめだぞ！ かわりに ことばで いえ！」
-
-【子どもが怖がった時】
-- 子どもが「こわい」「やだ」「いや」と言ったり、怯える様子があれば、
- すぐに怖さを弱めて安心させる。
- 例：「おっと、こわがらせちまったか。だいじょうぶだ。いいこのことはおこらないぞ。」
-
-【謝ったり、直すと言った時】
-- すぐに態度を少し軟らかくして受け入れる。
- 例：「そうか。あやまれるのは えらいぞ。」
- 例：「こんどは いいこにしてみろ。ちゃんとみてるぞ！」
-
-【禁止事項】
-- 子どもを本気で傷つける表現、暴力の具体的な示唆はしない。
-- 侮辱、罵倒、人格否定はしない。
-- 大人向けの説教、長すぎる説明、現実的すぎる話はしない。
-- 子どもの気持ちを無視して一方的に怒鳴り続けない。
-"""
+# ===== サンタ固定設定 =====
+header_title = "🎅 サンタさんとおはなししよう！"
+system_prompt = SANTA_PROMPT
+ai_avatar = "🎅"
 
 #========↓追加============
 def add_wish(child_id: int, item_name: str, point: int = 0):
@@ -524,25 +462,6 @@ def add_wish(child_id: int, item_name: str, point: int = 0):
     response = supabase.table("wishlist").insert(data).execute()
     return response
 #=========↑追加===========
-
-def render_chat():
-    # ---- サイドバー：モード切替 ----
-    mode = st.sidebar.radio("だれとおはなしする？", ["サンタさん 🎅", "おにさん 👹"])
-
-    if "current_mode" not in st.session_state:
-        st.session_state["current_mode"] = mode
-    if st.session_state["current_mode"] != mode:
-        st.session_state["messages"] = []
-        st.session_state["current_mode"] = mode
-
-    if mode == "サンタさん 🎅":
-        header_title = "🎅 サンタさんとおはなししよう！"
-        system_prompt = SANTA_PROMPT
-        ai_avatar = "🎅"
-    else:
-        header_title = "👹 コラ！おにさんだぞ！"
-        system_prompt = ONI_PROMPT
-        ai_avatar = "👹"
 
     # ---- 子ども選択 ----
     user_id = st.session_state["auth_user"]["user_id"]
@@ -589,11 +508,8 @@ def render_chat():
         with col_title:
             st.markdown(f'<div class="app-title">{header_title}</div>', unsafe_allow_html=True)
         with col_btn:
-            if st.button("チャットを終わる"):
+            if st.button("チャットを終わる", type="primary"):
                 st.session_state["show_end_dialog"] = True
-
-        if mode == "おにさん 👹":
-            st.error("いうことをきかないこは、おにさんがくるぞ……！")
 
         st.image(
             "https://eiyoushi-hutaba.com/wp-content/uploads/2022/11/%E3%82%B5%E3%83%B3%E3%82%BF%E3%81%95%E3%82%93-940x940.png",
