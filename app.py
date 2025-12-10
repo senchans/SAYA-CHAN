@@ -6,6 +6,10 @@ import uuid
 from datetime import datetime
 import random
 import re
+from audio_recorder_streamlit import audio_recorder
+from tempfile import NamedTemporaryFile
+from urllib.parse import quote_plus
+import base64
 
 #=====↓追加===========
 def add_wish(child_id: int, item_name: str, point: int = 0):
@@ -368,7 +372,7 @@ def render_lp():
     }
     </style>
     """, unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 1, 6])
+    col1, col2, col3 = st.columns([2, 2, 15])
     with col2:
         if st.button("ログイン", type="primary"):
             login_dialog()
@@ -450,18 +454,69 @@ header_title = "🎅 サンタさんとおはなししよう！"
 system_prompt = SANTA_PROMPT
 ai_avatar = "🎅"
 
-#========↓追加============
-def add_wish(child_id: int, item_name: str, point: int = 0):
-    data = {
-        "child_id": child_id,
-        "item_name": item_name,
-        "point": point,
-        "is_deleted": 0,
-        "created_at": datetime.utcnow().isoformat()
-    }
-    response = supabase.table("wishlist").insert(data).execute()
-    return response
-#=========↑追加===========
+# ---------------------------
+# 音声 → テキスト（STT）
+# ---------------------------
+def transcribe_audio_to_text(audio_bytes) -> str:
+    # Windows対策：delete=Falseで一旦閉じてから読む
+    temp_file = NamedTemporaryFile(delete=False, suffix=".wav")
+    try:
+        temp_file.write(audio_bytes)
+        temp_file.flush()
+        temp_file.close()  # ← ここで必ず閉じる
+
+        with open(temp_file.name, "rb") as audio_file:
+            transcription = client.audio.transcriptions.create(
+                model="gpt-4o-mini-transcribe",
+                file=audio_file,
+                response_format="text",
+            )
+        return transcription
+
+    finally:
+        # 後始末（残った一時ファイルを消す）
+        try:
+            os.remove(temp_file.name)
+        except Exception:
+            pass
+
+# ---------------------------
+# テキスト → 音声（TTS）
+# ---------------------------
+def text_to_speech(text: str) -> bytes:
+    speech = client.audio.speech.create(
+        model="gpt-4o-mini-tts",
+        voice="Verse",
+        input=text
+    )
+    return speech.content
+
+def autoplay_audio(audio_bytes: bytes):
+    b64 = base64.b64encode(audio_bytes).decode()
+    st.markdown(
+        f"""
+        <audio autoplay>
+            <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+        </audio>
+        """,
+        unsafe_allow_html=True
+    )
+
+def render_chat():
+    user_input = None
+
+    #========↓追加============
+    def add_wish(child_id: int, item_name: str, point: int = 0):
+        data = {
+            "child_id": child_id,
+            "item_name": item_name,
+            "point": point,
+            "is_deleted": 0,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        response = supabase.table("wishlist").insert(data).execute()
+        return response
+    #=========↑追加===========
 
     # ---- 子ども選択 ----
     user_id = st.session_state["auth_user"]["user_id"]
@@ -500,9 +555,8 @@ def add_wish(child_id: int, item_name: str, point: int = 0):
         points_box2 = st.empty()
         points_box2.metric("もくひょうポイント", goal_points)
 
-    # ---- 画面レイアウト ----
+    # ---- 画面レイアウト ----   
     left_col, right_col = st.columns([1, 4], gap="large")
-
     with right_col:
         col_title, col_btn = st.columns([8, 2])
         with col_title:
@@ -527,18 +581,39 @@ def add_wish(child_id: int, item_name: str, point: int = 0):
     for msg in st.session_state["messages"]:
         if msg["role"] == "system":
             continue
+        if not msg.get("content"):
+            continue
         icon = ai_avatar if msg["role"] == "assistant" else "🧒"
         with st.chat_message(msg["role"], avatar=icon):
             st.markdown(msg["content"])
 
-    # ---- 入力（1回だけ）----
-    if user_input := st.chat_input("ここになにかかいてね..."):
-        if user_input: #入力欄が未入力の場合の対応
-            st.session_state["show_end_dialog"] = False
+    # ===== 入力方法の選択=====
+    use_voice = st.toggle("🎙️ こえで しゃべる", value=False)
 
+    user_input = None
+
+    if use_voice:
+        audio_bytes = audio_recorder(text="🎤 おはなししてね", pause_threshold=3)
+        if audio_bytes is None or len(audio_bytes) < 1000:
+            st.info("もういちど、こえを いれてみてね")
+            return
+        with st.spinner("こえを もじに しているよ…"):
+            user_input = transcribe_audio_to_text(audio_bytes)
+        if not user_input:
+            st.info("うまく ききとれなかったよ。もういちど しゃべってね")
+            return
+            # 子どもが話した内容を画面にも見せたい場合
+        st.chat_message("user", avatar="🧒").write(user_input)
+        st.session_state["messages"].append({"role": "user", "content": user_input})
+    else:
+        user_input = st.chat_input("ここに いれてね")
+        # ★ 何も入力されてない（None / ""）時はここで終了
+        if not user_input:
+            return
         with st.chat_message("user", avatar="🧒"):
             st.markdown(user_input)
-        st.session_state["messages"].append({"role": "user", "content": user_input})
+        if user_input:  # ★None/"" のときはappendしない
+            st.session_state["messages"].append({"role": "user", "content": user_input})
 
         # 正規表現で「〇〇ほしい」「〇〇がいい」「〇〇お願いします」などを抽出
         pattern = r"(.+?)(ほしい|がほしい|がいいな|がいい|おねがい|をおねがい|おねがいします|をおねがいします|ください|をください|かな)"
@@ -569,6 +644,8 @@ def add_wish(child_id: int, item_name: str, point: int = 0):
 
 
     # 加点処理
+    if not user_input:
+        return
     keywords = fetch_active_keywords()
     add_points, matched_rows = calc_points(user_input, keywords)
 
@@ -587,9 +664,9 @@ def add_wish(child_id: int, item_name: str, point: int = 0):
 
     if st.session_state.get("show_end_dialog"):
         pass #　ボタンが押された場合は以下の処理は実施しない
-    else:
 
-    # AI返答
+    else:
+        # AI返答
         try:
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -609,25 +686,40 @@ def add_wish(child_id: int, item_name: str, point: int = 0):
 
                 message_placeholder.markdown(full_response)
 
-            st.session_state["messages"].append({"role": "assistant", "content": full_response})
+            if full_response:
+                st.session_state["messages"].append(
+                    {"role": "assistant", "content": full_response}
+                )
+
+                # ===== サンタの声を出す（TTS）=====
+                try:
+                    santa_voice = text_to_speech(full_response)
+                    autoplay_audio(santa_voice)
+                    st.audio(santa_voice, format="audio/mp3")
+                except Exception as e:
+                    st.warning(f"おんせいが だせなかったよ: {e}")
 
         except Exception as e:
             st.error(f"エラーが発生しました: {e}")
 
-    #=====↓追加==========
-    # ---- おねがいリスト管理 ----
-    if "pending_item" not in st.session_state:
-        st.session_state["pending_item"] = None
-    if "chat_count" not in st.session_state:
-        st.session_state["chat_count"] = 0
 
-    def santa_question():
-        questions = [
-            "そういえば、クリスマスにサンタにおねがいしたいものはあるかの？",
-            "ところで、クリスマスプレゼントはなにがほしいんじゃ？",
-            "サンタにたのんでみたいプレゼントはなんだい？"
-        ]
-        return random.choice(questions)
+    if st.session_state["show_end_dialog"]:
+        end_chat_dialog()
+
+        #=====↓追加==========
+        # ---- おねがいリスト管理 ----
+        if "pending_item" not in st.session_state:
+            st.session_state["pending_item"] = None
+        if "chat_count" not in st.session_state:
+            st.session_state["chat_count"] = 0
+
+def santa_question():
+    questions = [
+        "そういえば、クリスマスにサンタにおねがいしたいものはあるかの？",
+        "ところで、クリスマスプレゼントはなにがほしいんじゃ？",
+        "サンタにたのんでみたいプレゼントはなんだい？"
+    ]
+    return random.choice(questions)
 
     # ---- ラリー数管理 ----
     if "turn_count" not in st.session_state:
@@ -652,12 +744,9 @@ def add_wish(child_id: int, item_name: str, point: int = 0):
             )
             st.session_state["pending_item"] = None
 
-
-
-    # ---- Supabaseからおねがい一覧を取得して表示 ----
-    response = supabase.table("wishlist").select("*").eq("child_id", st.session_state["child_id"]).execute()
-    wishes = response.data
-
+        # ---- Supabaseからおねがい一覧を取得して表示 ----
+        response = supabase.table("wishlist").select("*").eq("child_id", st.session_state["child_id"]).execute()
+        wishes = response.data
 
     #=========↑追加=============
 
@@ -712,9 +801,6 @@ def end_chat_dialog():
 
             else:
                 st.error("ぱすわーどがちがうよ。")
-
-if st.session_state["show_end_dialog"]:
-    end_chat_dialog()
 
     # ==========================================
 # 6. 画面ルーティング
