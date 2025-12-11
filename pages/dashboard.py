@@ -380,9 +380,9 @@ with st.container():
     if st.button("ほしいものを追加する", type="primary"):
         wishlist_dialog()
 
-# -- よいこポイント表示 --
+# -- いいこポイント表示 --
 with st.container():
-    st.write("よいこポイント")
+    st.write("いいこポイント")
     if st.session_state.pointledger_points:
         df = pd.DataFrame(st.session_state.pointledger_points)
         df = df.rename(columns={
@@ -396,4 +396,4 @@ with st.container():
         total_points = df["ポイント"].sum()
         st.write(f"合計ポイント： {total_points} ポイント")
     else:
-        st.info("よいこポイントはまだ貯まっていません。")
+        st.info("いいこポイントはまだ貯まっていません。")
