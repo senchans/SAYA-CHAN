@@ -592,21 +592,33 @@ def render_chat():
     with st.container():
         col_chat, col_point = st.columns([4,1])
         with col_point:
+            #サンタさんのイラストをランダムで表示
+            santa_images = [
+            "https://ibqjfzinmlhvoxcfnvrx.supabase.co/storage/v1/object/sign/imgfiles/santa_bigsmile.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZDk1NzYwNC00ODQyLTRhNjItOTYwMi04ZGUyOTY3ZjcwN2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbWdmaWxlcy9zYW50YV9iaWdzbWlsZS5wbmciLCJpYXQiOjE3NjUzNzkzOTUsImV4cCI6MTkyMzA1OTM5NX0.g2UCsuSZdkYHieyUz1dGP7F2Bl57geIXwQ7xKwYfKUQ",
+            "https://ibqjfzinmlhvoxcfnvrx.supabase.co/storage/v1/object/sign/imgfiles/santa_fun.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZDk1NzYwNC00ODQyLTRhNjItOTYwMi04ZGUyOTY3ZjcwN2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbWdmaWxlcy9zYW50YV9mdW4ucG5nIiwiaWF0IjoxNzY1MzgwNTk3LCJleHAiOjE5MjMwNjA1OTd9.7S3CYUTOJXGFNjiESciEaxgWA0ox-e9dEX7dDnz4IqE",
+            "https://ibqjfzinmlhvoxcfnvrx.supabase.co/storage/v1/object/sign/imgfiles/santa_smile.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZDk1NzYwNC00ODQyLTRhNjItOTYwMi04ZGUyOTY3ZjcwN2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbWdmaWxlcy9zYW50YV9zbWlsZS5wbmciLCJpYXQiOjE3NjUzNzk0NDMsImV4cCI6MTkyMzA1OTQ0M30.mzdAiSWa31xGYXlUZk0WraIuOLkOdLiFfR5vYnNOHOk",
+            "https://ibqjfzinmlhvoxcfnvrx.supabase.co/storage/v1/object/sign/imgfiles/santa_surprised.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZDk1NzYwNC00ODQyLTRhNjItOTYwMi04ZGUyOTY3ZjcwN2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbWdmaWxlcy9zYW50YV9zdXJwcmlzZWQucG5nIiwiaWF0IjoxNzY1Mzc5NDcxLCJleHAiOjE5MjMwNTk0NzF9.iBEsRUl_cNa0G3uLZeC4gRwwpEk_sc9iDvbYgEvzoNo",
+            "https://ibqjfzinmlhvoxcfnvrx.supabase.co/storage/v1/object/sign/imgfiles/santa_smallsmile.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZDk1NzYwNC00ODQyLTRhNjItOTYwMi04ZGUyOTY3ZjcwN2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbWdmaWxlcy9zYW50YV9zbWFsbHNtaWxlLnBuZyIsImlhdCI6MTc2NTM4MDUzNywiZXhwIjoxOTIzMDYwNTM3fQ.B0ZHUC1pFgN7xo5AaYAE0XLm4PtfP3DcafL_TwA9Qfg",
+            "https://ibqjfzinmlhvoxcfnvrx.supabase.co/storage/v1/object/sign/imgfiles/santa_relax.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZDk1NzYwNC00ODQyLTRhNjItOTYwMi04ZGUyOTY3ZjcwN2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbWdmaWxlcy9zYW50YV9yZWxheC5wbmciLCJpYXQiOjE3NjUzODA2MjksImV4cCI6MTkyMzA2MDYyOX0.8ahjzzs96XQJFBywW1wkRDDswl5zOaxPoNVWacVahrw",
+            "https://ibqjfzinmlhvoxcfnvrx.supabase.co/storage/v1/object/sign/imgfiles/santa_wink.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZDk1NzYwNC00ODQyLTRhNjItOTYwMi04ZGUyOTY3ZjcwN2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbWdmaWxlcy9zYW50YV93aW5rLnBuZyIsImlhdCI6MTc2NTM4MDczMSwiZXhwIjoxOTIzMDYwNzMxfQ.2L_sBzYPsE0_HdefGTfadEz7DLq58KgJEtc6Udx74Z0"
+            ]
+            selected_santa_image = random.choice(santa_images)
+
             st.image(
-            "https://eiyoushi-hutaba.com/wp-content/uploads/2022/11/%E3%82%B5%E3%83%B3%E3%82%BF%E3%81%95%E3%82%93-940x940.png",
-            width=200,
-            caption="サンタさん"
+                selected_santa_image,
+                width=200,
+                caption="サンタさん"
             )
-            st.markdown("### よいこポイント")
+            st.markdown("### いいこポイント")
             points_box1 = st.empty()
-            points_box1.metric("いまのポイント", st.session_state["total_points"])
+            points_box1.metric("◎いまのポイント", st.session_state["total_points"])
         #   もくひょうポイント
             goal_points =  selected_child.get("goal_points")
         #    Noneのときはデフォルト値を50に設定
             if goal_points is None:
                 goal_points = 50  # デフォルト目標ポイント
             points_box2 = st.empty()
-            points_box2.metric("もくひょうポイント", goal_points)
+            points_box2.metric("◎もくひょうポイント", goal_points)
 
 
         with col_chat:
