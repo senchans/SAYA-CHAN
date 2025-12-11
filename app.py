@@ -581,9 +581,11 @@ def render_chat():
         with col_title:
             st.markdown(f'<div class="app-title">{header_title}</div>', unsafe_allow_html=True)
         with col_btn:
-            if st.button("チャットを終わる", type="primary"):
+            if st.button("チャットを終わる", type="primary", key="open_end_dialog"):
                 st.session_state["show_end_dialog"] = True
-
+            if st.session_state.get("show_end_dialog"):
+                end_chat_dialog()
+                st.stop()  # または return
 
 
     # ---- チャットを左、ポイントを右に表示 ----
