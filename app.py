@@ -723,12 +723,14 @@ def render_chat():
                         )
 
                         # ===== サンタの声を出す（TTS）=====
-                        try:
-                            santa_voice = text_to_speech(full_response)
-                            autoplay_audio(santa_voice)
-                            st.audio(santa_voice, format="audio/mp3")
-                        except Exception as e:
-                            st.warning(f"おんせいが だせなかったよ: {e}")
+                        # 子ども側が「こえで しゃべる」をONにしていた時だけ音声を返す
+                        if use_voice:
+                            try:
+                                santa_voice = text_to_speech(full_response)
+                                autoplay_audio(santa_voice)
+                                st.audio(santa_voice, format="audio/mp3")
+                            except Exception as e:
+                                st.warning(f"おんせいが だせなかったよ: {e}")
 
                         # ===== サンタが質問したかどうかを判定 =====
                         # プロンプトで「クリスマスプレゼントはなにがほしいのかい？」と聞くようにしているので
