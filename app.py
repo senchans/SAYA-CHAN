@@ -108,7 +108,7 @@ div[data-testid="stChatMessage"] {
     background: rgba(255,255,255,0.92);
 }
 /* サンタ側だけ少し色味を変える*/
-div[data-testid="stChatMessage"][data-testid="chatMessage-assistant"] {
+[data-testid="chatMessage-assistant"] {
     background: rgba(255,245,245,0.98) !important;
 }
 
@@ -178,8 +178,40 @@ header[data-testid="stHeader"] {
     font-size: 32px;
     font-weight: 800;
     white-space: nowrap;
+    color: #0B3D2E;   /* ← ここを追加：LPと同じ深緑 */
 }
 
+/* ★ 右側のサンタ＋ポイントをスクロール固定する */
+.chat-right-panel {
+    position: sticky;
+    top: 80px;
+}   
+            
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+/* ===== チャット入力欄を画面下に固定 ===== */
+div[data-testid="stChatInput"] > div {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 0.4rem 2rem 0.8rem 2rem;
+    background: transparent;
+    z-index: 20;
+}
+
+/* 入力欄が横一杯に広がるように */
+div[data-testid="stChatInput"] textarea {
+    width: 100%;
+}
+
+/* 入力欄が被らないように、下に余白をあける */
+.main .block-container {
+    padding-bottom: 6rem;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -474,14 +506,13 @@ def fetch_children_for_user(user_id):
 SANTA_PROMPT = """
 あなたは子供が大好きな、優しくて温かいサンタクロースです。
 子供とお話して、いいことをしたらたくさん褒め、嫌なことや悪いことをしたら優しく諭してあげます。
-4〜6ターン目くらいで「そういえば、もうすぐクリスマスじゃな。クリスマスプレゼントはなにがほしいのかい？」とやさしく聞いてください。
+4ターン目くらいで「そういえば、もうすぐクリスマスじゃな。クリスマスプレゼントはなにがほしいのかい？」とやさしく聞いてください。
 次のルールを必ず守って、ぶれないサンタクロースとしてふるまってください。
 
 【基本キャラ】
 ・一人称は「わし」。
 ・にこにこしていて、優しいおじいちゃんの雰囲気。絶対否定しない。
-・「〜じゃよ」「〜だよ」のような、親しみやすいサンタ口調を使ってください。
-・子どもの気持ちを一番大切にする。
+・「〜じゃよ」「〜じゃな」のような、親しみやすいサンタ口調を使ってください。
 ・子どもが怖がるようなこと、脅す、叱る、バカにする、傷つけることは絶対に言わない。
 ・親（保護者）をリスペクトし、絶対に親（おかあさん、おとうさん、おじいちゃん、おばあちゃん）の悪口を言わない。
 
@@ -490,6 +521,14 @@ SANTA_PROMPT = """
 ・短く、簡単に、ゆっくり読める言葉を話す。
 ・文の長さは最大2文まで。
 ・子どもが言った言葉を基本はかみ砕いてオウム返ししてあげる。「お手伝いキーワード」が入っていたら必ず繰り返す。
+・「お手伝いキーワード」などのメタ発言はしない。
+
+【さいごのやくそく】
+・はなすまえに、ぜったいに ひらがな だけになっているか かくにんすること。
+・かんじ、きごう、アルファベット、かたいことばが すこしでもあったら、やりなおして ぜんぶ ひらがな にしてから はなすこと。えもじはつかってもいいよ。
+
+【よいれい】
+「おそうじを がんばったんじゃね。わしは とても うれしいよ。」
 """
 
 # ===== サンタ固定設定 =====
@@ -587,11 +626,17 @@ def render_chat():
                 end_chat_dialog()
                 st.stop()  # または return
 
+        # ---- チャットを左、ポイントを右に表示 ----
+        with st.container():
+            col_chat, col_point = st.columns([4, 1])
 
-    # ---- チャットを左、ポイントを右に表示 ----
-    with st.container():
-        col_chat, col_point = st.columns([4,1])
-        with col_point:
+            # ★ 右ペインだけ sticky にするラッパー
+            with col_point:
+                # chat-right-panel（スクロール固定）＋ points-card（白いカード）の２重ラッパー
+                st.markdown(
+                    '<div class="chat-right-panel"><div class="points-card">',
+                    unsafe_allow_html=True
+                )
             #サンタさんのイラストをランダムで表示
             santa_images = [
             "https://ibqjfzinmlhvoxcfnvrx.supabase.co/storage/v1/object/sign/imgfiles/santa_bigsmile.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZDk1NzYwNC00ODQyLTRhNjItOTYwMi04ZGUyOTY3ZjcwN2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbWdmaWxlcy9zYW50YV9iaWdzbWlsZS5wbmciLCJpYXQiOjE3NjUzNzkzOTUsImV4cCI6MTkyMzA1OTM5NX0.g2UCsuSZdkYHieyUz1dGP7F2Bl57geIXwQ7xKwYfKUQ",
@@ -620,12 +665,45 @@ def render_chat():
             points_box2 = st.empty()
             points_box2.metric("◎もくひょうポイント", goal_points)
 
+        # ラッパーを閉じる
+        st.markdown("</div></div>", unsafe_allow_html=True)
+
+        st.markdown("""
+        <style>
+        /* 右側の「いいこポイント」カード全体 */
+        .points-card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 24px;
+            padding: 18px 22px;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+            margin-top: 8px;
+        }
+
+        /* カード内の文字色をLPと同じ深緑に統一 */
+        .points-card,
+        .points-card h3,
+        .points-card p,
+        .points-card span,
+        .points-card div {
+            color: #0B3D2E;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
         with col_chat:
             # ---- 会話履歴初期化 ----
             if "messages" not in st.session_state or len(st.session_state["messages"]) == 0:
-                st.session_state["messages"] = [{"role": "system", "content": system_prompt}]
+                # 最初の1回だけ、サンタさんからあいさつメッセージを出す
+                st.session_state["messages"] = [
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "assistant",
+                        "content": "こんにちは！ わしは サンタさん じゃよ。"
+                                "きょうは なにを してあそんだのかな？"
+                    },
+                ]
             else:
+                # system プロンプトだけは毎回最新に上書き
                 st.session_state["messages"][0] = {"role": "system", "content": system_prompt}
 
             # ---- チャット履歴表示 ----
@@ -683,7 +761,7 @@ def render_chat():
                             item_name=item,
                             point=0
                         )
-                        st.success(f"🎁 {item} をサンタさんへのおねがいとして保存したよ！")
+                        st.success(f"🎁 {item} がほしいものなんだね、おぼえたよ！")
                         st.session_state["awaiting_wish"] = False  # 保存後はフラグを戻す
                     except Exception as e:
                         st.error(f"おねがいの保存中にエラーが発生しました: {e}")
@@ -696,7 +774,7 @@ def render_chat():
 
             if add_points > 0:
                 st.session_state["total_points"] += add_points
-                points_box1.metric("いまのポイント", st.session_state["total_points"])
+                points_box1.metric("◎いまのポイント", st.session_state["total_points"])
 
                 insert_points_log(st.session_state["child_id"], matched_rows, user_input)
                 upsert_child_total(st.session_state["child_id"], st.session_state["total_points"])
