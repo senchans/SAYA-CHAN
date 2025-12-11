@@ -205,7 +205,12 @@ child_names = [child["name"] for child in st.session_state.children_list]
 @st.dialog("お子さんプロフィール登録")
 def registration_dialog():
     name = st.text_input("お名前")
-    birth_date = st.date_input("生年月日")
+    birth_date = st.date_input(
+        "生年月日",
+        value=date(2020, 1, 1),          # ← 未来日を避けて過去を初期値に
+        min_value=date(2000, 1, 1),      # ← ここで選択可能下限
+        max_value=date.today()           # ← 今日まで選択OK
+    )
     gender = st.selectbox("性別" ,("男の子","女の子","選択しない"))
 
     if st.button("登録"):
@@ -245,6 +250,36 @@ def wishlist_dialog():
                 "item_name": item_name
             }).execute()
         st.success("ほしいものリストに追加しました。")
+        st.rerun()
+
+@st.dialog("目標ポイントを変更")
+def changegoal_dialog():
+    if not st.session_state.selected_child:
+        st.error("お子さんを選択してください。")
+        return
+    child = st.session_state.selected_child
+    current_goal = child.get("goal_points", 50)
+
+    new_goal = st.number_input(
+        "新しい目標ポイントを入力してください",
+        min_value=1,
+        max_value=10000,
+        value=int(current_goal),
+        step=1
+    )
+
+    if st.button("保存する"):
+        supabase.table("childmaster").update({
+            "goal_points": new_goal
+        }).eq("child_id", child["child_id"]).execute()
+
+        st.success("目標ポイントを更新しました。")
+
+        # 最新データを再取得
+        st.session_state.children_list = load_children()
+        st.session_state.selected_child = next(
+            c for c in st.session_state.children_list if c["child_id"] == child["child_id"]
+        )
         st.rerun()
 
 
@@ -314,11 +349,14 @@ with st.container():
             birth_date_str = selected_child["birth_date"]
             child_id = selected_child["child_id"]
             birth_date = datetime.strptime(birth_date_str, "%Y-%m-%d").date()
+            goal_points = int(selected_child["goal_points"])
 
             today = date.today()
             age = today.year - birth_date.year - (
                 (today.month, today.day) < (birth_date.month, birth_date.day)
             )
+        else:
+            selected_child = None
 
 st.divider()
 
@@ -327,27 +365,29 @@ with st.container():
     col1, col2 = st.columns([3, 1])
 
     with col1:  # プロフィール
-        st.markdown(f"""
-        <div class="hero-card">
-        <div class="hero-title">{selected_child['name']}プロフィール</div>
-        <ul class="hero-list">
-            <li>性別：{gender}</li>
-            <li>生年月日：{birth_date}</li>
-            <li>年齢：{age}歳</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
+        if selected_child:
+            st.markdown(f"""
+            <div class="hero-card">
+            <div class="hero-title">{selected_child['name']}プロフィール</div>
+            <ul class="hero-list">
+                <li>性別：{gender}</li>
+                <li>生年月日：{birth_date}</li>
+                <li>年齢：{age}歳</li>
+            </ul>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.info("お子さんを登録して、はじめましょう！")
 
     with col2:  # チャット画面遷移ボタン
-        if st.button("サンタさんとチャットする", type="primary"):
+        if st.button("サンタさんとチャットする", type="primary", disabled = (st.session_state.selected_child is None)):
             st.switch_page("app.py")
 
-        
 st.divider()
 
 # -- ほしいものリスト表示 --
 with st.container():
-    st.write("ほしいものリスト")
+    st.markdown("<b>💖ほしいものリスト</b>", unsafe_allow_html=True)
     if st.session_state.wishlist_items:
         df = pd.DataFrame(st.session_state.wishlist_items)
 
@@ -380,9 +420,12 @@ with st.container():
     if st.button("ほしいものを追加する", type="primary"):
         wishlist_dialog()
 
+st.divider()
+
+# -- いいこポイント表示 --
 # -- いいこポイント表示 --
 with st.container():
-    st.write("いいこポイント")
+    st.markdown("<b>⭐いいこポイント</b>", unsafe_allow_html=True)
     if st.session_state.pointledger_points:
         df = pd.DataFrame(st.session_state.pointledger_points)
         df = df.rename(columns={
@@ -392,8 +435,24 @@ with st.container():
         })
         df["追加日時"] = pd.to_datetime(df["追加日時"]).dt.strftime("%Y-%m-%d %H:%M")
         st.dataframe(df, hide_index=True)
+        
+        # goal_points を int に変換
+        try:
+            goal_points = int(selected_child["goal_points"])
+        except:
+            goal_points = 0 
 
         total_points = df["ポイント"].sum()
-        st.write(f"合計ポイント： {total_points} ポイント")
+        st.markdown(f"<b>合計ポイント： {total_points} ポイント</b>", unsafe_allow_html=True)
+        st.markdown(f"<b>目標ポイント： {goal_points} ポイント</b>", unsafe_allow_html=True)
+
+        if total_points >= goal_points:
+            st.success("おめでとうございます！目標を達成しました🎉")
+        else:
+            remaining = goal_points - total_points
+            st.markdown(f"<b>目標まであと： {remaining} ポイント</b>", unsafe_allow_html=True)
     else:
         st.info("いいこポイントはまだ貯まっていません。")
+    
+    if st.button("目標ポイントを変更する", type="primary", disabled = (st.session_state.selected_child is None)):
+        changegoal_dialog()
