@@ -192,31 +192,6 @@ header[data-testid="stHeader"] {
 
 st.markdown("""
 <style>
-/* ===== チャット入力欄を画面下に固定 ===== */
-div[data-testid="stChatInput"] > div {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    padding: 0.4rem 2rem 0.8rem 2rem;
-    background: transparent;
-    z-index: 20;
-}
-
-/* 入力欄が横一杯に広がるように */
-div[data-testid="stChatInput"] textarea {
-    width: 100%;
-}
-
-/* 入力欄が被らないように、下に余白をあける */
-.main .block-container {
-    padding-bottom: 6rem;
-}
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<style>
 /* ====== ボタンデザインをクリスマス風に統一 ====== */
 button[kind="primary"] {
     background: #BA8C6A !important;
@@ -613,30 +588,26 @@ def render_chat():
     if "total_points" not in st.session_state:
         st.session_state["total_points"] = selected_child.get("total_points") or 0
 
-    # ---- 画面レイアウト ----   
-    left_col, right_col = st.columns([1, 4], gap="large")
-    with right_col:
-        col_title, col_btn = st.columns([8, 2])
-        with col_title:
-            st.markdown(f'<div class="app-title">{header_title}</div>', unsafe_allow_html=True)
-        with col_btn:
-            if st.button("チャットを終わる", type="primary", key="open_end_dialog"):
-                st.session_state["show_end_dialog"] = True
-            if st.session_state.get("show_end_dialog"):
-                end_chat_dialog()
-                st.stop()  # または return
+    # ---- 画面レイアウト ----
 
-        # ---- チャットを左、ポイントを右に表示 ----
-        with st.container():
-            col_chat, col_point = st.columns([4, 1])
+    # タイトル行（全幅）
+    col_title, col_btn = st.columns([8, 2])
+    with col_title:
+        st.markdown(f'<div class="app-title">{header_title}</div>', unsafe_allow_html=True)
+    with col_btn:
+        if st.button("チャットを終わる", type="primary", key="open_end_dialog"):
+            st.session_state["show_end_dialog"] = True
+        if st.session_state.get("show_end_dialog"):
+            end_chat_dialog()
+            st.stop()  # または return
 
-            # ★ 右ペインだけ sticky にするラッパー
-            with col_point:
-                # chat-right-panel（スクロール固定）＋ points-card（白いカード）の２重ラッパー
-                st.markdown(
-                    '<div class="chat-right-panel"><div class="points-card">',
-                    unsafe_allow_html=True
-                )
+    # チャット（左）＋ ポイント（右）
+    with st.container():
+        col_chat, col_point = st.columns([4, 1])
+
+        # 右カラム：サンタさん＋いいこポイント
+        with col_point:
+
             #サンタさんのイラストをランダムで表示
             santa_images = [
             "https://ibqjfzinmlhvoxcfnvrx.supabase.co/storage/v1/object/sign/imgfiles/santa_bigsmile.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV85ZDk1NzYwNC00ODQyLTRhNjItOTYwMi04ZGUyOTY3ZjcwN2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbWdmaWxlcy9zYW50YV9iaWdzbWlsZS5wbmciLCJpYXQiOjE3NjUzNzkzOTUsImV4cCI6MTkyMzA1OTM5NX0.g2UCsuSZdkYHieyUz1dGP7F2Bl57geIXwQ7xKwYfKUQ",
@@ -664,31 +635,6 @@ def render_chat():
                 goal_points = 50  # デフォルト目標ポイント
             points_box2 = st.empty()
             points_box2.metric("◎もくひょうポイント", goal_points)
-
-        # ラッパーを閉じる
-        st.markdown("</div></div>", unsafe_allow_html=True)
-
-        st.markdown("""
-        <style>
-        /* 右側の「いいこポイント」カード全体 */
-        .points-card {
-            background: rgba(255,255,255,0.95);
-            border-radius: 24px;
-            padding: 18px 22px;
-            box-shadow: 0 10px 24px rgba(0,0,0,0.18);
-            margin-top: 8px;
-        }
-
-        /* カード内の文字色をLPと同じ深緑に統一 */
-        .points-card,
-        .points-card h3,
-        .points-card p,
-        .points-card span,
-        .points-card div {
-            color: #0B3D2E;
-        }
-        </style>
-        """, unsafe_allow_html=True)
 
         with col_chat:
             # ---- 会話履歴初期化 ----
